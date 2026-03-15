@@ -1,0 +1,201 @@
+'use client'
+
+import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
+import PostCard from '@/components/PostCard'
+import Link from 'next/link'
+
+interface Post {
+  id: string
+  content: string
+  postType: string
+  formatType: string
+  status: string
+  scheduledAt?: string | null
+  postedAt?: string | null
+  impressions: number
+  likes: number
+  retweets: number
+  replies: number
+  bookmarks: number
+  createdAt: string
+}
+
+const STATUSES = ['すべて', '下書き', '承認待ち', '予約済み', '投稿済み', '失敗']
+const POST_TYPES = ['すべて', 'コンビニまとめ型', '数値比較型', '地雷暴露型', 'プロセス共有型', 'あるある共感型', 'チェックリスト保存型', 'Instagram連携型', 'その他']
+
+export default function PostsPage() {
+  const searchParams = useSearchParams()
+  const [posts, setPosts] = useState<Post[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'すべて')
+  const [typeFilter, setTypeFilter] = useState('すべて')
+  const [page, setPage] = useState(1)
+
+  const fetchPosts = useCallback(async () => {
+    setLoading(true)
+    const params = new URLSearchParams()
+    if (statusFilter !== 'すべて') params.set('status', statusFilter)
+    if (typeFilter !== 'すべて') params.set('postType', typeFilter)
+    params.set('page', page.toString())
+    params.set('limit', '12')
+
+    try {
+      const res = await fetch(`/api/posts?${params}`)
+      const data = await res.json()
+      setPosts(data.posts || [])
+      setTotal(data.total || 0)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setLoading(false)
+    }
+  }, [statusFilter, typeFilter, page])
+
+  useEffect(() => {
+    fetchPosts()
+  }, [fetchPosts])
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('この投稿を削除しますか？')) return
+    try {
+      await fetch(`/api/posts/${id}`, { method: 'DELETE' })
+      fetchPosts()
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  const handlePost = async (id: string) => {
+    if (!confirm('この投稿をXに投稿しますか？')) return
+    try {
+      const res = await fetch('/api/x/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId: id }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        alert(data.simulated ? '投稿をシミュレートしました（X APIキー未設定）' : '投稿しました！')
+        fetchPosts()
+      } else {
+        alert('投稿に失敗しました: ' + (data.error || '不明なエラー'))
+      }
+    } catch (error) {
+      console.error(error)
+      alert('投稿に失敗しました')
+    }
+  }
+
+  const totalPages = Math.ceil(total / 12)
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">投稿管理</h1>
+          <p className="text-gray-400 text-sm mt-1">全{total}件</p>
+        </div>
+        <Link
+          href="/posts/new"
+          className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-colors"
+        >
+          ✏️ 新規投稿
+        </Link>
+      </div>
+
+      {/* Filters */}
+      <div className="space-y-3">
+        {/* Status Filter */}
+        <div className="flex gap-2 flex-wrap">
+          {STATUSES.map(s => (
+            <button
+              key={s}
+              onClick={() => { setStatusFilter(s); setPage(1) }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                statusFilter === s
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700'
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
+        {/* Type Filter */}
+        <div className="flex gap-2 flex-wrap">
+          {POST_TYPES.map(t => (
+            <button
+              key={t}
+              onClick={() => { setTypeFilter(t); setPage(1) }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                typeFilter === t
+                  ? 'bg-gray-600 text-white border border-gray-500'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700'
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Posts Grid */}
+      {loading ? (
+        <div className="flex items-center justify-center h-48">
+          <div className="text-gray-400">読み込み中...</div>
+        </div>
+      ) : posts.length > 0 ? (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            {posts.map(post => (
+              <PostCard
+                key={post.id}
+                post={post}
+                onDelete={handleDelete}
+                onPost={handlePost}
+              />
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 rounded-lg text-sm border border-gray-700"
+              >
+                ←
+              </button>
+              <span className="text-sm text-gray-400">
+                {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 rounded-lg text-sm border border-gray-700"
+              >
+                →
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="bg-gray-800 rounded-xl p-12 text-center border border-gray-700">
+          <div className="text-5xl mb-4">📭</div>
+          <p className="text-gray-400">投稿が見つかりません</p>
+          <Link
+            href="/posts/new"
+            className="inline-block mt-4 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm transition-colors"
+          >
+            新規投稿を作成
+          </Link>
+        </div>
+      )}
+    </div>
+  )
+}
