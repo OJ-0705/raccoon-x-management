@@ -75,11 +75,11 @@ function PostsContent() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">投稿管理</h1>
-          <p className="text-gray-400 text-sm mt-1">全{total}件</p>
+          <p className="text-slate-400 text-sm mt-1">全{total}件</p>
         </div>
         <Link
           href="/posts/new"
-          className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-colors"
+          className="px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-sm font-medium transition-colors"
         >
           ✏️ 新規投稿
         </Link>
@@ -96,8 +96,9 @@ function PostsContent() {
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 statusFilter === s
                   ? 'bg-orange-500 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700'
+                  : 'text-slate-400'
               }`}
+              style={statusFilter === s ? {} : { background: 'rgba(255,255,255,0.08)' }}
             >
               {s}
             </button>
@@ -112,9 +113,13 @@ function PostsContent() {
               onClick={() => { setTypeFilter(t); setPage(1) }}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 typeFilter === t
-                  ? 'bg-gray-600 text-white border border-gray-500'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700'
+                  ? 'text-white'
+                  : 'text-slate-400'
               }`}
+              style={typeFilter === t
+                ? { background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)' }
+                : { background: 'rgba(255,255,255,0.08)' }
+              }
             >
               {t}
             </button>
@@ -125,7 +130,7 @@ function PostsContent() {
       {/* Posts Grid */}
       {loading ? (
         <div className="flex items-center justify-center h-48">
-          <div className="text-gray-400">読み込み中...</div>
+          <div className="text-slate-400">読み込み中...</div>
         </div>
       ) : posts.length > 0 ? (
         <>
@@ -146,17 +151,19 @@ function PostsContent() {
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 rounded-lg text-sm border border-gray-700"
+                className="px-3 py-1.5 disabled:opacity-50 text-slate-300 rounded-lg text-sm"
+                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
               >
                 ←
               </button>
-              <span className="text-sm text-gray-400">
+              <span className="text-sm text-slate-400">
                 {page} / {totalPages}
               </span>
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 rounded-lg text-sm border border-gray-700"
+                className="px-3 py-1.5 disabled:opacity-50 text-slate-300 rounded-lg text-sm"
+                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
               >
                 →
               </button>
@@ -164,12 +171,15 @@ function PostsContent() {
           )}
         </>
       ) : (
-        <div className="bg-gray-800 rounded-xl p-12 text-center border border-gray-700">
+        <div
+          className="rounded-2xl p-12 text-center"
+          style={{ background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.08)' }}
+        >
           <div className="text-5xl mb-4">📭</div>
-          <p className="text-gray-400">投稿が見つかりません</p>
+          <p className="text-slate-400">投稿が見つかりません</p>
           <Link
             href="/posts/new"
-            className="inline-block mt-4 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm transition-colors"
+            className="inline-block mt-4 px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-sm transition-colors"
           >
             新規投稿を作成
           </Link>
@@ -183,7 +193,7 @@ export default function PostsPage() {
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400">読み込み中...</div>
+        <div className="text-slate-400">読み込み中...</div>
       </div>
     }>
       <PostsContent />

@@ -165,7 +165,7 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
       <div className="space-y-5">
         {/* Post Type */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">投稿タイプ</label>
+          <label className="block text-sm font-medium text-slate-300 mb-2">投稿タイプ</label>
           <div className="grid grid-cols-2 gap-2">
             {POST_TYPES.map(type => (
               <button
@@ -174,9 +174,12 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
                 className={`px-3 py-2 rounded-lg text-xs font-medium text-left transition-all border ${
                   postType === type
                     ? 'text-white border-transparent'
-                    : 'text-gray-400 border-gray-700 bg-gray-800 hover:border-gray-500'
+                    : 'text-slate-400'
                 }`}
-                style={postType === type ? { backgroundColor: POST_TYPE_COLORS[type], borderColor: POST_TYPE_COLORS[type] } : {}}
+                style={postType === type
+                  ? { backgroundColor: POST_TYPE_COLORS[type], borderColor: POST_TYPE_COLORS[type] }
+                  : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }
+                }
               >
                 {type}
               </button>
@@ -186,7 +189,7 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
 
         {/* Format Type */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">フォーマット</label>
+          <label className="block text-sm font-medium text-slate-300 mb-2">フォーマット</label>
           <div className="flex gap-2 flex-wrap">
             {FORMAT_TYPES.map(type => (
               <button
@@ -194,9 +197,13 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
                 onClick={() => setFormatType(type)}
                 className={`px-3 py-1.5 rounded-lg text-xs transition-colors border ${
                   formatType === type
-                    ? 'bg-gray-600 text-white border-gray-500'
-                    : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-600'
+                    ? 'text-white border-transparent'
+                    : 'text-slate-400 border-transparent'
                 }`}
+                style={formatType === type
+                  ? { background: 'rgba(255,255,255,0.12)' }
+                  : { background: 'rgba(255,255,255,0.04)' }
+                }
               >
                 {type}
               </button>
@@ -207,13 +214,14 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
         {/* Templates */}
         {templates.filter(t => t.postType === postType).length > 0 && (
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">テンプレート</label>
+            <label className="block text-sm font-medium text-slate-300 mb-2">テンプレート</label>
             <div className="space-y-2">
               {templates.filter(t => t.postType === postType).map(t => (
                 <button
                   key={t.id}
                   onClick={() => handleTemplateSelect(t)}
-                  className="w-full text-left px-3 py-2.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-300 transition-colors"
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-xs text-slate-300 transition-colors"
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
                 >
                   📋 {t.name}
                 </button>
@@ -240,8 +248,8 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
         {/* Content */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-gray-300">投稿内容</label>
-            <span className={`text-xs font-mono ${isOverLimit ? 'text-red-400' : charCount > 120 ? 'text-yellow-400' : 'text-gray-400'}`}>
+            <label className="text-sm font-medium text-slate-300">投稿内容</label>
+            <span className={`text-xs font-mono ${isOverLimit ? 'text-red-400' : charCount > 120 ? 'text-yellow-400' : 'text-slate-400'}`}>
               {charCount}/140
             </span>
           </div>
@@ -249,7 +257,8 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
             value={content}
             onChange={(e) => setContent(e.target.value)}
             rows={8}
-            className="w-full px-4 py-3 bg-gray-900 border border-gray-600 focus:border-orange-500 rounded-xl text-gray-200 text-sm resize-none focus:outline-none transition-colors leading-relaxed"
+            className="w-full px-4 py-3 rounded-xl text-slate-200 text-sm resize-none focus:outline-none focus:border-orange-500/50 transition-colors leading-relaxed"
+            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
             placeholder="投稿内容を入力してください..."
           />
           {isOverLimit && (
@@ -259,7 +268,7 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
 
         {/* Hashtags */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">ハッシュタグ</label>
+          <label className="block text-sm font-medium text-slate-300 mb-2">ハッシュタグ</label>
           <div className="flex gap-2 mb-2">
             <input
               type="text"
@@ -267,11 +276,13 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
               onChange={(e) => setHashtagInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddHashtag()}
               placeholder="#タグを入力"
-              className="flex-1 px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-orange-500"
+              className="flex-1 px-3 py-2 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-orange-500/50 transition-colors"
+              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
             />
             <button
               onClick={handleAddHashtag}
-              className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm"
+              className="px-3 py-2 text-slate-300 rounded-lg text-sm"
+              style={{ background: 'rgba(255,255,255,0.08)' }}
             >
               追加
             </button>
@@ -292,11 +303,12 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
         {/* Status & Schedule */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">ステータス</label>
+            <label className="block text-sm font-medium text-slate-300 mb-2">ステータス</label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="w-full px-3 py-2.5 bg-gray-900 border border-gray-600 rounded-xl text-sm text-gray-200 focus:outline-none focus:border-orange-500"
+              className="w-full px-3 py-2.5 rounded-xl text-sm text-slate-200 focus:outline-none focus:border-orange-500/50 transition-colors"
+              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
             >
               {STATUSES.map(s => (
                 <option key={s} value={s}>{s}</option>
@@ -304,12 +316,13 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">予約日時</label>
+            <label className="block text-sm font-medium text-slate-300 mb-2">予約日時</label>
             <input
               type="datetime-local"
               value={scheduledAt}
               onChange={(e) => setScheduledAt(e.target.value)}
-              className="w-full px-3 py-2.5 bg-gray-900 border border-gray-600 rounded-xl text-sm text-gray-200 focus:outline-none focus:border-orange-500"
+              className="w-full px-3 py-2.5 rounded-xl text-sm text-slate-200 focus:outline-none focus:border-orange-500/50 transition-colors"
+              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
             />
           </div>
         </div>
@@ -319,14 +332,15 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
           <button
             onClick={() => handleSave('下書き')}
             disabled={saving || !content}
-            className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-200 rounded-xl text-sm font-medium transition-colors"
+            className="flex-1 py-3 disabled:opacity-50 text-slate-200 rounded-xl text-sm font-medium transition-colors"
+            style={{ background: 'rgba(255,255,255,0.08)' }}
           >
             下書き保存
           </button>
           <button
             onClick={() => handleSave()}
             disabled={saving || !content}
-            className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-colors"
+            className="flex-1 py-3 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-colors"
           >
             {saving ? '保存中...' : mode === 'edit' ? '更新する' : '保存する'}
           </button>
@@ -335,7 +349,7 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
 
       {/* Right: Preview */}
       <div className="lg:sticky lg:top-6">
-        <h3 className="text-sm font-medium text-gray-400 mb-3">プレビュー</h3>
+        <h3 className="text-sm font-medium text-slate-400 mb-3">プレビュー</h3>
         <PostPreview content={content} postType={postType} />
       </div>
     </div>

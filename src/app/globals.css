@@ -1,13 +1,23 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: var(--font-biz-udp-gothic), 'BIZ UDPGothic', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+}
+
 :root {
-  --background: #111827;
-  --foreground: #f9fafb;
+  --background: #06070d;
+  --foreground: #e8ecf4;
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(ellipse 80% 50% at 15% -10%, rgba(249, 115, 22, 0.13) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 85% 110%, rgba(139, 92, 246, 0.09) 0%, transparent 60%),
+    #06070d;
+  background-attachment: fixed;
   color: var(--foreground);
+  min-height: 100vh;
+  font-size: 15px;
 }
 
 * {
@@ -15,19 +25,19 @@ body {
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1f2937;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #374151;
+  background: rgba(249, 115, 22, 0.25);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4b5563;
+  background: rgba(249, 115, 22, 0.5);
 }

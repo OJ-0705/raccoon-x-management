@@ -23,6 +23,14 @@ const POST_TYPE_COLORS: Record<string, string> = {
   'その他': '#6B7280',
 }
 
+const glass = {
+  background: 'rgba(255,255,255,0.04)',
+  backdropFilter: 'blur(16px)',
+  WebkitBackdropFilter: 'blur(16px)',
+  border: '1px solid rgba(255,255,255,0.08)',
+  boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
+}
+
 export default function TopPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
@@ -123,22 +131,23 @@ export default function TopPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">🏠 トップ</h1>
-          <p className="text-gray-400 text-xs mt-0.5">AIが生成した承認待ち投稿案</p>
+          <h1 className="text-2xl font-bold text-white">🏠 トップ</h1>
+          <p className="text-slate-400 text-xs mt-0.5">AIが生成した承認待ち投稿案</p>
         </div>
         <button
           onClick={generate}
           disabled={generating}
-          className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-300 rounded-xl text-xs transition-colors"
+          className="px-3 py-1.5 disabled:opacity-50 text-slate-300 rounded-xl text-xs transition-all"
+          style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
         >
           {generating ? '生成中...' : '🔄 再生成'}
         </button>
       </div>
 
       {/* Status bar */}
-      <div className="flex items-center gap-3 bg-gray-800 rounded-xl px-4 py-2.5 border border-gray-700">
+      <div className="flex items-center gap-3 rounded-xl px-4 py-2.5" style={glass}>
         <div className={`w-2 h-2 rounded-full ${posts.length >= 10 ? 'bg-green-400' : posts.length > 0 ? 'bg-yellow-400' : 'bg-red-400'}`} />
-        <span className="text-xs text-gray-300">
+        <span className="text-xs text-slate-300">
           承認待ち: <span className="text-white font-bold">{posts.length}</span> / 10件
         </span>
         {generating && <span className="text-xs text-orange-400 ml-auto">投稿案を生成中...</span>}
@@ -147,17 +156,17 @@ export default function TopPage() {
       {/* Posts — 3-column grid */}
       {loading ? (
         <div className="flex items-center justify-center h-48">
-          <div className="text-gray-400 text-sm">読み込み中...</div>
+          <div className="text-slate-400 text-sm">読み込み中...</div>
         </div>
       ) : posts.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {posts.map((post, i) => {
             const typeColor = POST_TYPE_COLORS[post.postType] || '#6B7280'
             return (
-              <div key={post.id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden flex flex-col">
+              <div key={post.id} className="rounded-xl overflow-hidden flex flex-col" style={glass}>
                 {/* Card header */}
-                <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-700">
-                  <span className="text-xs text-gray-500 font-mono">#{i + 1}</span>
+                <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                  <span className="text-xs text-slate-500 font-mono">#{i + 1}</span>
                   <span
                     className="text-xs px-2 py-0.5 rounded-full font-medium text-white truncate"
                     style={{ backgroundColor: typeColor }}
@@ -168,7 +177,7 @@ export default function TopPage() {
 
                 {/* Content */}
                 <div className="px-3 py-3 flex-1">
-                  <p className="text-xs text-gray-200 whitespace-pre-wrap leading-relaxed">
+                  <p className="text-xs text-slate-200 whitespace-pre-wrap leading-relaxed">
                     {post.content}
                   </p>
                 </div>
@@ -183,27 +192,29 @@ export default function TopPage() {
                   <button
                     onClick={() => handleApprove(post)}
                     disabled={approving === post.id}
-                    className="col-span-2 py-1.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-colors"
+                    className="col-span-2 py-1.5 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-all"
                   >
                     ✅ 承認する
                   </button>
                   <button
                     onClick={() => openEdit(post)}
-                    className="py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs transition-colors"
+                    className="py-1.5 text-slate-300 rounded-lg text-xs transition-all"
+                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
                   >
                     ✏️ 編集
                   </button>
                   <button
                     onClick={() => handleApproveDirectly(post.id)}
                     disabled={approving === post.id}
-                    className="py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-300 rounded-lg text-xs transition-colors"
+                    className="py-1.5 disabled:opacity-50 text-slate-300 rounded-lg text-xs transition-all"
+                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
                     title="推奨時刻のまま即承認"
                   >
                     {approving === post.id ? '...' : '⚡ 即承認'}
                   </button>
                   <button
                     onClick={() => handleReject(post.id)}
-                    className="col-span-2 py-1 bg-red-900/40 hover:bg-red-900/70 text-red-400 rounded-lg text-xs transition-colors"
+                    className="col-span-2 py-1 bg-red-900/40 hover:bg-red-900/70 text-red-400 rounded-lg text-xs transition-all"
                   >
                     削除
                   </button>
@@ -213,13 +224,13 @@ export default function TopPage() {
           })}
         </div>
       ) : (
-        <div className="bg-gray-800 rounded-xl p-10 text-center border border-gray-700">
+        <div className="rounded-xl p-10 text-center" style={glass}>
           <div className="text-4xl mb-3">🤖</div>
-          <p className="text-gray-400 text-sm mb-3">承認待ちの投稿案がありません</p>
+          <p className="text-slate-400 text-sm mb-3">承認待ちの投稿案がありません</p>
           <button
             onClick={generate}
             disabled={generating}
-            className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-xl text-sm transition-colors"
+            className="px-4 py-2 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-xl text-sm transition-all"
           >
             {generating ? '生成中...' : 'AIで投稿案を生成'}
           </button>
@@ -244,7 +255,8 @@ export default function TopPage() {
           onClick={() => setEditPost(null)}
         >
           <div
-            className="bg-gray-800 rounded-2xl p-6 w-full max-w-lg border border-gray-700 shadow-2xl"
+            className="rounded-2xl p-6 w-full max-w-lg shadow-2xl"
+            style={{ background: 'rgba(8,9,18,0.95)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.12)' }}
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">
@@ -256,30 +268,32 @@ export default function TopPage() {
                 {editPost.postType}
               </span>
             </div>
-            <p className="text-xs text-gray-400 mb-3">ハッシュタグは最大2つまで。内容を自由に編集してください。</p>
+            <p className="text-xs text-slate-400 mb-3">ハッシュタグは最大2つまで。内容を自由に編集してください。</p>
             <textarea
               value={editContent}
               onChange={e => setEditContent(e.target.value)}
               rows={10}
-              className="w-full px-3 py-2.5 bg-gray-900 border border-gray-600 rounded-xl text-sm text-white resize-none focus:outline-none focus:border-orange-500 transition-colors leading-relaxed"
+              className="w-full px-3 py-2.5 rounded-xl text-sm text-white resize-none focus:outline-none transition-all leading-relaxed"
+              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
             />
             <div className="flex items-center justify-between mt-1 mb-4">
-              <span className="text-xs text-gray-500">{editContent.length}文字</span>
-              <span className={`text-xs ${editContent.length > 140 ? 'text-red-400' : 'text-gray-500'}`}>
+              <span className="text-xs text-slate-500">{editContent.length}文字</span>
+              <span className={`text-xs ${editContent.length > 140 ? 'text-red-400' : 'text-slate-500'}`}>
                 推奨: 140文字以内
               </span>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setEditPost(null)}
-                className="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl text-sm transition-colors"
+                className="flex-1 py-2.5 text-slate-300 rounded-xl text-sm transition-all"
+                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
               >
                 キャンセル
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-colors"
+                className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-all"
               >
                 {saving ? '保存中...' : '保存する'}
               </button>

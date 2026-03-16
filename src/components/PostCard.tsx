@@ -5,49 +5,37 @@ import Link from 'next/link'
 import ScheduleModal from './ScheduleModal'
 
 interface Post {
-  id: string
-  content: string
-  postType: string
-  formatType: string
-  status: string
-  platform?: string
-  scheduledAt?: string | null
-  postedAt?: string | null
-  impressions: number
-  likes: number
-  retweets: number
-  replies: number
-  bookmarks: number
-  threadsImp?: number
-  threadsLikes?: number
-  threadsReplies?: number
-  threadsReposts?: number
-  createdAt: string
+  id: string; content: string; postType: string; formatType: string; status: string
+  platform?: string; scheduledAt?: string | null; postedAt?: string | null
+  impressions: number; likes: number; retweets: number; replies: number; bookmarks: number
+  threadsImp?: number; threadsLikes?: number; threadsReplies?: number; threadsReposts?: number
+  createdAt: string; abGroupId?: string | null; abVariant?: string | null
 }
 
 const POST_TYPE_COLORS: Record<string, string> = {
-  'コンビニまとめ型': '#10B981',
-  '数値比較型': '#3B82F6',
-  '地雷暴露型': '#EF4444',
-  'プロセス共有型': '#8B5CF6',
-  'あるある共感型': '#F97316',
-  'チェックリスト保存型': '#06B6D4',
-  'Instagram連携型': '#EC4899',
-  'その他': '#6B7280',
+  'コンビニまとめ型': '#10B981', '数値比較型': '#3B82F6', '地雷暴露型': '#EF4444',
+  'プロセス共有型': '#8B5CF6', 'あるある共感型': '#F97316', 'チェックリスト保存型': '#06B6D4',
+  'Instagram連携型': '#EC4899', 'その他': '#6B7280',
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  '下書き': 'bg-gray-600 text-gray-200',
-  '承認待ち': 'bg-yellow-600 text-yellow-100',
-  '予約済み': 'bg-blue-600 text-blue-100',
-  '投稿済み': 'bg-green-600 text-green-100',
-  '失敗': 'bg-red-600 text-red-100',
+  '下書き': 'rgba(75,85,99,0.4)', '承認待ち': 'rgba(161,98,7,0.4)',
+  '予約済み': 'rgba(29,78,216,0.4)', '投稿済み': 'rgba(21,128,61,0.4)', '失敗': 'rgba(185,28,28,0.4)',
+}
+
+const STATUS_TEXT: Record<string, string> = {
+  '下書き': '#9ca3af', '承認待ち': '#fbbf24', '予約済み': '#93c5fd', '投稿済み': '#86efac', '失敗': '#fca5a5',
+}
+
+const glassCard = {
+  background: 'rgba(255,255,255,0.04)',
+  backdropFilter: 'blur(16px)',
+  WebkitBackdropFilter: 'blur(16px)',
+  border: '1px solid rgba(255,255,255,0.08)',
 }
 
 interface PostCardProps {
-  post: Post
-  onDelete?: (id: string) => void
-  onRefresh?: () => void
+  post: Post; onDelete?: (id: string) => void; onRefresh?: () => void
 }
 
 export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
@@ -57,35 +45,33 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
   const [improving, setImproving] = useState(false)
   const [selectedVariant, setSelectedVariant] = useState<string | null>(null)
   const [savingVariant, setSavingVariant] = useState(false)
-  // Platform toggle
   const [platform, setPlatform] = useState(post.platform || 'x')
   const [updatingPlatform, setUpdatingPlatform] = useState(false)
+  // Score
+  const [score, setScore] = useState<{ score: number; predictedEngagement: number; feedback: string } | null>(null)
+  const [scoring, setScoring] = useState(false)
+  const [showScore, setShowScore] = useState(false)
+  // A/B test
+  const [showAB, setShowAB] = useState(false)
+  const [abLoading, setAbLoading] = useState(false)
+  const [abResult, setAbResult] = useState<{ groupId: string; postA: Post; postB: Post } | null>(null)
 
   const typeColor = POST_TYPE_COLORS[post.postType] || '#6B7280'
-  const statusClass = STATUS_COLORS[post.status] || 'bg-gray-600 text-gray-200'
-
-  const formatDate = (dateStr?: string | null) => {
-    if (!dateStr) return null
-    return new Date(dateStr).toLocaleDateString('ja-JP', {
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-    })
-  }
-
   const canSchedule = post.status === '下書き' || post.status === '承認待ち'
+
+  const formatDate = (d?: string | null) =>
+    d ? new Date(d).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null
 
   const togglePlatform = async () => {
     const next = platform === 'x' ? 'both' : 'x'
     setUpdatingPlatform(true)
     try {
       await fetch(`/api/posts/${post.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ platform: next }),
       })
       setPlatform(next)
-    } finally {
-      setUpdatingPlatform(false)
-    }
+    } finally { setUpdatingPlatform(false) }
   }
 
   const handleImprove = async () => {
@@ -94,60 +80,88 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
     setImproving(true)
     try {
       const res = await fetch('/api/ai/improve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: post.content, postType: post.postType }),
       })
       const data = await res.json()
       setImproveVariants(data.variants || [])
-    } finally {
-      setImproving(false)
-    }
+    } finally { setImproving(false) }
   }
 
   const applyVariant = async (content: string) => {
     setSavingVariant(true)
     try {
       await fetch(`/api/posts/${post.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
       })
       onRefresh?.()
       setShowImprove(false)
-    } finally {
-      setSavingVariant(false)
-    }
+    } finally { setSavingVariant(false) }
   }
+
+  const handleScore = async () => {
+    setShowScore(true)
+    if (score) return
+    setScoring(true)
+    try {
+      const res = await fetch('/api/ai/score', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: post.content, postType: post.postType }),
+      })
+      const data = await res.json()
+      setScore(data)
+    } finally { setScoring(false) }
+  }
+
+  const handleABTest = async () => {
+    setShowAB(true)
+    if (abResult) return
+    setAbLoading(true)
+    try {
+      const res = await fetch('/api/ai/ab-test', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: post.content, postType: post.postType, scheduledAt: post.scheduledAt }),
+      })
+      const data = await res.json()
+      setAbResult(data)
+    } finally { setAbLoading(false) }
+  }
+
+  const scoreColor = !score ? '#6b7280'
+    : score.score >= 80 ? '#10b981'
+    : score.score >= 60 ? '#f97316'
+    : '#ef4444'
 
   return (
     <>
-      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-colors">
+      <div className="rounded-2xl p-4 transition-all hover:border-white/[0.14]" style={glassCard}>
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs px-2 py-1 rounded-full font-medium text-white" style={{ backgroundColor: typeColor }}>
+            <span className="text-sm px-2.5 py-1 rounded-full font-medium text-white" style={{ backgroundColor: typeColor }}>
               {post.postType}
             </span>
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusClass}`}>
+            <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: STATUS_COLORS[post.status] || 'rgba(75,85,99,0.4)', color: STATUS_TEXT[post.status] || '#9ca3af' }}>
               {post.status}
             </span>
+            {post.abVariant && (
+              <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(6,182,212,0.2)', color: '#67e8f9', border: '1px solid rgba(6,182,212,0.3)' }}>
+                A/B {post.abVariant}
+              </span>
+            )}
           </div>
-          <span className="text-xs text-gray-500 whitespace-nowrap shrink-0">
-            {formatDate(post.createdAt)}
-          </span>
+          <span className="text-xs text-slate-500 whitespace-nowrap shrink-0">{formatDate(post.createdAt)}</span>
         </div>
 
-        {/* Content — full text */}
-        <p className="text-sm text-gray-200 whitespace-pre-wrap mb-3 leading-relaxed">
-          {post.content}
-        </p>
+        {/* Content */}
+        <p className="text-sm text-slate-200 whitespace-pre-wrap mb-3 leading-relaxed">{post.content}</p>
 
-        {/* Stats (posted) */}
+        {/* Stats */}
         {post.status === '投稿済み' && (
-          <div className="mb-3 space-y-1">
-            <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
-              <span className="text-blue-400 text-xs font-medium">𝕏</span>
+          <div className="mb-3 space-y-1.5">
+            <div className="flex items-center gap-3 text-sm text-slate-400 flex-wrap">
+              <span className="text-blue-400 font-medium text-xs">𝕏</span>
               <span>👀 {post.impressions.toLocaleString()}</span>
               <span>❤️ {post.likes.toLocaleString()}</span>
               <span>🔁 {post.retweets.toLocaleString()}</span>
@@ -155,8 +169,8 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
               <span>🔖 {post.bookmarks.toLocaleString()}</span>
             </div>
             {(post.threadsImp || 0) > 0 && (
-              <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
-                <span className="text-purple-400 text-xs font-medium">🧵</span>
+              <div className="flex items-center gap-3 text-sm text-slate-400 flex-wrap">
+                <span className="text-purple-400 font-medium text-xs">🧵</span>
                 <span>👀 {(post.threadsImp || 0).toLocaleString()}</span>
                 <span>❤️ {(post.threadsLikes || 0).toLocaleString()}</span>
                 <span>💬 {(post.threadsReplies || 0).toLocaleString()}</span>
@@ -168,43 +182,70 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
 
         {/* Scheduled */}
         {post.scheduledAt && (
-          <div className="text-xs text-blue-400 mb-3">⏰ 予約: {formatDate(post.scheduledAt)}</div>
+          <div className="text-sm text-blue-400 mb-3">⏰ 予約: {formatDate(post.scheduledAt)}</div>
         )}
 
-        {/* Platform toggle (for drafts/pending) */}
-        {(post.status === '下書き' || post.status === '承認待ち') && (
-          <div className="flex items-center gap-2 mb-3 py-2 border-t border-gray-700">
-            <span className="text-xs text-gray-400">Threadsにも投稿</span>
+        {/* Platform toggle */}
+        {canSchedule && (
+          <div className="flex items-center gap-2 mb-3 py-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <span className="text-sm text-slate-400">Threadsにも投稿</span>
             <button
               onClick={togglePlatform}
               disabled={updatingPlatform}
-              className={`relative w-10 h-5 rounded-full transition-colors ${platform === 'both' ? 'bg-purple-500' : 'bg-gray-600'}`}
+              className={`relative w-10 h-5 rounded-full transition-colors ${platform === 'both' ? 'bg-purple-500' : 'bg-slate-600'}`}
             >
               <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${platform === 'both' ? 'translate-x-5' : ''}`} />
             </button>
-            <span className={`text-xs ${platform === 'both' ? 'text-purple-400' : 'text-gray-500'}`}>
+            <span className={`text-sm ${platform === 'both' ? 'text-purple-400' : 'text-slate-500'}`}>
               {platform === 'both' ? 'ON' : 'OFF'}
             </span>
           </div>
         )}
 
+        {/* Score display */}
+        {showScore && score && (
+          <div className="mb-3 rounded-xl p-3" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-bold" style={{ color: scoreColor }}>スコア {score.score}</span>
+                <div className="w-24 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                  <div className="h-full rounded-full" style={{ width: `${score.score}%`, backgroundColor: scoreColor }} />
+                </div>
+              </div>
+              <span className="text-sm text-slate-400">予測EG: {score.predictedEngagement.toFixed(1)}%</span>
+            </div>
+            <p className="text-xs text-slate-400">{score.feedback}</p>
+          </div>
+        )}
+
         {/* Actions */}
-        <div className="flex items-center gap-2 pt-2 border-t border-gray-700 flex-wrap">
-          <Link href={`/posts/${post.id}/edit`} className="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded-lg transition-colors">
+        <div className="flex items-center gap-2 pt-2 flex-wrap" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <Link href={`/posts/${post.id}/edit`} className="text-sm px-3 py-1.5 rounded-xl text-slate-300 hover:text-white transition-all" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}>
             編集
           </Link>
           {canSchedule && (
-            <button onClick={() => setShowScheduleModal(true)} className="text-xs px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors">
-              スケジュールを設定
+            <button onClick={() => setShowScheduleModal(true)} className="text-sm px-3 py-1.5 bg-orange-500 hover:bg-orange-400 text-white rounded-xl transition-all shadow-sm shadow-orange-500/20">
+              スケジュール設定
             </button>
           )}
-          <button onClick={handleImprove} className="text-xs px-3 py-1.5 bg-purple-700 hover:bg-purple-600 text-white rounded-lg transition-colors">
+          <button onClick={handleImprove} className="text-sm px-3 py-1.5 rounded-xl text-purple-300 hover:text-purple-200 transition-all" style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)' }}>
             ✨ AI改善
           </button>
+          {canSchedule && (
+            <button onClick={handleScore} className="text-sm px-3 py-1.5 rounded-xl transition-all" style={{ background: 'rgba(6,182,212,0.12)', border: '1px solid rgba(6,182,212,0.22)', color: '#67e8f9' }}>
+              🎯 スコア診断
+            </button>
+          )}
+          {canSchedule && (
+            <button onClick={handleABTest} className="text-sm px-3 py-1.5 rounded-xl transition-all" style={{ background: 'rgba(234,179,8,0.12)', border: '1px solid rgba(234,179,8,0.22)', color: '#fde047' }}>
+              🆎 A/Bテスト
+            </button>
+          )}
           {onDelete && (
             <button
               onClick={() => { if (confirm('この投稿を削除しますか？')) onDelete(post.id) }}
-              className="text-xs px-3 py-1.5 bg-red-900 hover:bg-red-800 text-red-300 hover:text-red-100 rounded-lg transition-colors ml-auto"
+              className="text-sm px-3 py-1.5 rounded-xl ml-auto transition-all"
+              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5' }}
             >
               削除
             </button>
@@ -214,47 +255,69 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
 
       {/* Schedule Modal */}
       {showScheduleModal && (
-        <ScheduleModal
-          postId={post.id}
-          postType={post.postType}
-          defaultScheduledAt={post.scheduledAt}
-          onClose={() => setShowScheduleModal(false)}
-          onScheduled={() => onRefresh?.()}
-        />
+        <ScheduleModal postId={post.id} postType={post.postType} defaultScheduledAt={post.scheduledAt}
+          onClose={() => setShowScheduleModal(false)} onScheduled={() => onRefresh?.()} />
       )}
 
       {/* AI Improve Modal */}
       {showImprove && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowImprove(false)}>
-          <div className="bg-gray-800 rounded-2xl p-6 w-full max-w-2xl border border-gray-700 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-white mb-1">✨ AI改善提案</h3>
-            <p className="text-xs text-gray-400 mb-4">採用したいバリアントを選んで「適用する」を押してください</p>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowImprove(false)}>
+          <div className="w-full max-w-2xl rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto" style={{ background: 'rgba(8,9,18,0.95)', backdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.12)' }} onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-1">✨ AI改善提案</h3>
+            <p className="text-sm text-slate-400 mb-4">採用したいバリアントを選んで「適用する」を押してください</p>
             {improving ? (
-              <div className="text-center py-8 text-gray-400">AIが改善中...</div>
+              <div className="text-center py-8 text-slate-400">AIが改善中...</div>
             ) : (
               <div className="space-y-4">
                 {improveVariants.map((v, i) => (
-                  <div key={i} className={`bg-gray-900 rounded-xl p-4 border-2 transition-colors cursor-pointer ${selectedVariant === v ? 'border-purple-500' : 'border-gray-700 hover:border-gray-500'}`} onClick={() => setSelectedVariant(v)}>
-                    <p className="text-xs text-purple-400 font-bold mb-2">バリアント {i + 1}</p>
-                    <p className="text-sm text-gray-200 whitespace-pre-wrap">{v}</p>
+                  <div key={i} className={`rounded-xl p-4 cursor-pointer transition-all ${selectedVariant === v ? 'border-purple-500' : 'hover:border-white/20'}`}
+                    style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${selectedVariant === v ? '#8b5cf6' : 'rgba(255,255,255,0.08)'}` }}
+                    onClick={() => setSelectedVariant(v)}>
+                    <p className="text-sm text-purple-400 font-bold mb-2">バリアント {i + 1}</p>
+                    <p className="text-sm text-slate-200 whitespace-pre-wrap">{v}</p>
                   </div>
                 ))}
               </div>
             )}
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowImprove(false)} className="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl text-sm transition-colors">
+              <button onClick={() => setShowImprove(false)} className="flex-1 py-2.5 rounded-xl text-sm text-slate-300" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 閉じる
               </button>
               {selectedVariant && (
-                <button
-                  onClick={() => applyVariant(selectedVariant)}
-                  disabled={savingVariant}
-                  className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-colors"
-                >
+                <button onClick={() => applyVariant(selectedVariant)} disabled={savingVariant} className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-all">
                   {savingVariant ? '適用中...' : '✅ 適用する'}
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* A/B Test Modal */}
+      {showAB && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowAB(false)}>
+          <div className="w-full max-w-2xl rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto" style={{ background: 'rgba(8,9,18,0.95)', backdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.12)' }} onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-1">🆎 A/Bテスト生成</h3>
+            <p className="text-sm text-slate-400 mb-4">2つのバリアントを自動生成して承認待ちキューに追加します</p>
+            {abLoading ? (
+              <div className="text-center py-8 text-slate-400">AIがバリアントを生成中...</div>
+            ) : abResult ? (
+              <div className="space-y-4">
+                {[{ label: 'A — フック強化型', content: abResult.postA.content }, { label: 'B — 共感訴求型', content: abResult.postB.content }].map((v, i) => (
+                  <div key={i} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <p className="text-sm font-bold mb-2" style={{ color: i === 0 ? '#67e8f9' : '#86efac' }}>{v.label}</p>
+                    <p className="text-sm text-slate-200 whitespace-pre-wrap">{v.content}</p>
+                  </div>
+                ))}
+                <div className="rounded-xl p-3" style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)' }}>
+                  <p className="text-sm text-yellow-300">✅ 承認待ちキューに追加されました。投稿後のエンゲージメントを比較してください。</p>
+                  <p className="text-xs text-slate-500 mt-1">グループID: {abResult.groupId.slice(0, 8)}...</p>
+                </div>
+              </div>
+            ) : null}
+            <button onClick={() => setShowAB(false)} className="w-full mt-4 py-2.5 rounded-xl text-sm text-slate-300" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              閉じる
+            </button>
           </div>
         </div>
       )}

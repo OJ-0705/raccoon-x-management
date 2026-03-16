@@ -28,6 +28,14 @@ const POST_TYPE_COLORS: Record<string, string> = {
   'その他': '#6B7280',
 }
 
+const glass = {
+  background: 'rgba(255,255,255,0.04)',
+  backdropFilter: 'blur(16px)',
+  WebkitBackdropFilter: 'blur(16px)',
+  border: '1px solid rgba(255,255,255,0.08)',
+  boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
+}
+
 function StatCard({ title, value, icon, color }: { title: string; value: number; icon: string; color: string }) {
   const colors: Record<string, string> = {
     purple: 'text-purple-400 bg-purple-500/10',
@@ -36,9 +44,9 @@ function StatCard({ title, value, icon, color }: { title: string; value: number;
     orange: 'text-orange-400 bg-orange-500/10',
   }
   return (
-    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+    <div className="rounded-xl p-5" style={glass}>
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs text-gray-400">{title}</p>
+        <p className="text-xs text-slate-400">{title}</p>
         <span className={`text-lg p-1.5 rounded-lg ${colors[color]}`}>{icon}</span>
       </div>
       <p className="text-4xl font-bold text-white">{value.toLocaleString()}</p>
@@ -90,7 +98,7 @@ export default function ThreadsDashboardPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
-      <div className="text-gray-400 text-sm">読み込み中...</div>
+      <div className="text-slate-400 text-sm">読み込み中...</div>
     </div>
   )
 
@@ -99,26 +107,26 @@ export default function ThreadsDashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">ダッシュボード — Threads</h1>
-          <p className="text-gray-400 text-xs mt-0.5">Threadsのパフォーマンス分析</p>
+          <h1 className="text-2xl font-bold text-white">ダッシュボード — Threads</h1>
+          <p className="text-slate-400 text-xs mt-0.5">Threadsのパフォーマンス分析</p>
         </div>
-        <Link href="/posts/new" className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-medium transition-colors">
+        <Link href="/posts/new" className="px-3 py-2 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-xs font-medium transition-all shadow-lg shadow-orange-500/20">
           ✏️ 新規投稿
         </Link>
       </div>
 
       {/* Setup notice if no posts */}
       {posts.length === 0 && (
-        <div className="bg-purple-900/30 border border-purple-700 rounded-xl p-5">
+        <div className="rounded-xl p-5" style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)' }}>
           <h3 className="text-sm font-bold text-purple-300 mb-2">🧵 Threads連携の設定が必要です</h3>
-          <p className="text-xs text-gray-300 mb-3">
+          <p className="text-xs text-slate-300 mb-3">
             Threadsに投稿するには、Vercelの環境変数に以下を追加してください：
           </p>
-          <div className="bg-gray-900 rounded-lg p-3 font-mono text-xs text-green-400 space-y-1">
-            <div>THREADS_USER_ID=<span className="text-gray-400">（あなたのThreadsユーザーID）</span></div>
-            <div>THREADS_ACCESS_TOKEN=<span className="text-gray-400">（アクセストークン）</span></div>
+          <div className="rounded-lg p-3 font-mono text-xs text-green-400 space-y-1" style={{ background: 'rgba(0,0,0,0.3)' }}>
+            <div>THREADS_USER_ID=<span className="text-slate-400">（あなたのThreadsユーザーID）</span></div>
+            <div>THREADS_ACCESS_TOKEN=<span className="text-slate-400">（アクセストークン）</span></div>
           </div>
-          <p className="text-xs text-gray-400 mt-3">
+          <p className="text-xs text-slate-400 mt-3">
             設定方法は下部の「Threads API設定手順」を参照してください。
             設定後、投稿時に「Threadsにも投稿」をONにすると自動的に連携されます。
           </p>
@@ -137,7 +145,7 @@ export default function ThreadsDashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left: Engagement rate + comparison */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+          <div className="rounded-xl p-5" style={glass}>
             <h2 className="text-sm font-bold text-white mb-4">📊 投稿タイプ別エンゲージメント率 (Threads)</h2>
             {engRates.length > 0 ? (
               <div className="space-y-3">
@@ -146,12 +154,12 @@ export default function ThreadsDashboardPage() {
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2">
                         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: POST_TYPE_COLORS[item.postType] || '#6B7280' }} />
-                        <span className="text-sm text-gray-200">{item.postType}</span>
-                        <span className="text-xs text-gray-500">（{item.count}件）</span>
+                        <span className="text-sm text-slate-200">{item.postType}</span>
+                        <span className="text-xs text-slate-500">（{item.count}件）</span>
                       </div>
                       <span className="text-sm font-bold text-white">{item.rate.toFixed(2)}%</span>
                     </div>
-                    <div className="h-2.5 bg-gray-700 rounded-full overflow-hidden">
+                    <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
                       <div
                         className="h-full rounded-full transition-all"
                         style={{ width: `${(item.rate / maxRate) * 100}%`, backgroundColor: POST_TYPE_COLORS[item.postType] || '#6B7280' }}
@@ -162,14 +170,14 @@ export default function ThreadsDashboardPage() {
               </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-500 text-sm">Threads投稿済みデータがありません</p>
-                <p className="text-gray-600 text-xs mt-1">投稿時にThreads連携をONにしてください</p>
+                <p className="text-slate-500 text-sm">Threads投稿済みデータがありません</p>
+                <p className="text-slate-600 text-xs mt-1">投稿時にThreads連携をONにしてください</p>
               </div>
             )}
           </div>
 
           {/* Threads vs X comparison */}
-          <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+          <div className="rounded-xl p-5" style={glass}>
             <h2 className="text-sm font-bold text-white mb-4">⚔️ Threads vs X エンゲージメント比較</h2>
             {posts.length > 0 ? (
               <div className="space-y-3">
@@ -178,14 +186,14 @@ export default function ThreadsDashboardPage() {
                   const tEng = post.threadsLikes + post.threadsReplies + post.threadsReposts
                   const winner = tEng >= xEng ? 'threads' : 'x'
                   return (
-                    <div key={post.id} className="bg-gray-900 rounded-lg p-3">
-                      <p className="text-xs text-gray-400 mb-2 line-clamp-1">{post.content.slice(0, 50)}...</p>
+                    <div key={post.id} className="rounded-lg p-3" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                      <p className="text-xs text-slate-400 mb-2 line-clamp-1">{post.content.slice(0, 50)}...</p>
                       <div className="flex gap-4 text-xs">
-                        <span className={`flex items-center gap-1 ${winner === 'x' ? 'text-blue-300 font-bold' : 'text-gray-500'}`}>
+                        <span className={`flex items-center gap-1 ${winner === 'x' ? 'text-blue-300 font-bold' : 'text-slate-500'}`}>
                           𝕏 エンゲージメント: {xEng.toLocaleString()}
                           {winner === 'x' && ' 🏆'}
                         </span>
-                        <span className={`flex items-center gap-1 ${winner === 'threads' ? 'text-purple-300 font-bold' : 'text-gray-500'}`}>
+                        <span className={`flex items-center gap-1 ${winner === 'threads' ? 'text-purple-300 font-bold' : 'text-slate-500'}`}>
                           🧵 {tEng.toLocaleString()}
                           {winner === 'threads' && ' 🏆'}
                         </span>
@@ -195,7 +203,7 @@ export default function ThreadsDashboardPage() {
                 })}
               </div>
             ) : (
-              <p className="text-gray-500 text-sm text-center py-4">比較データなし</p>
+              <p className="text-slate-500 text-sm text-center py-4">比較データなし</p>
             )}
           </div>
         </div>
@@ -205,12 +213,12 @@ export default function ThreadsDashboardPage() {
           <h2 className="text-sm font-bold text-white">🔥 高エンゲージメント投稿 (Threads)</h2>
           {topPosts.length > 0 ? (
             topPosts.map(post => (
-              <div key={post.id} className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+              <div key={post.id} className="rounded-xl p-4" style={glass}>
                 <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium" style={{ backgroundColor: POST_TYPE_COLORS[post.postType] || '#6B7280' }}>
                   {post.postType}
                 </span>
-                <p className="text-xs text-gray-200 mt-2 whitespace-pre-wrap">{post.content}</p>
-                <div className="flex gap-3 mt-2 text-xs text-gray-400">
+                <p className="text-xs text-slate-200 mt-2 whitespace-pre-wrap">{post.content}</p>
+                <div className="flex gap-3 mt-2 text-xs text-slate-400">
                   <span>❤️ {post.threadsLikes}</span>
                   <span>💬 {post.threadsReplies}</span>
                   <span>🔁 {post.threadsReposts}</span>
@@ -218,56 +226,56 @@ export default function ThreadsDashboardPage() {
               </div>
             ))
           ) : (
-            <div className="bg-gray-800 rounded-xl p-6 text-center border border-gray-700">
+            <div className="rounded-xl p-6 text-center" style={glass}>
               <div className="text-3xl mb-2">🧵</div>
-              <p className="text-gray-400 text-xs">投稿済みデータなし</p>
+              <p className="text-slate-400 text-xs">投稿済みデータなし</p>
             </div>
           )}
         </div>
       </div>
 
       {/* Threads API setup guide */}
-      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+      <div className="rounded-xl p-5" style={glass}>
         <h2 className="text-sm font-bold text-white mb-4">🛠️ Threads API 設定手順</h2>
-        <div className="space-y-3 text-xs text-gray-300">
+        <div className="space-y-3 text-xs text-slate-300">
           <div className="flex gap-3">
             <span className="w-6 h-6 bg-purple-700 rounded-full flex items-center justify-center text-white font-bold shrink-0">1</span>
             <div>
               <p className="font-medium text-white">Meta Developersアカウントを作成</p>
-              <p className="text-gray-400">https://developers.facebook.com にアクセスして、アカウント登録またはログイン</p>
+              <p className="text-slate-400">https://developers.facebook.com にアクセスして、アカウント登録またはログイン</p>
             </div>
           </div>
           <div className="flex gap-3">
             <span className="w-6 h-6 bg-purple-700 rounded-full flex items-center justify-center text-white font-bold shrink-0">2</span>
             <div>
               <p className="font-medium text-white">Threadsアプリを作成</p>
-              <p className="text-gray-400">「アプリを作成」→「Threads」を選択 → アプリ名を設定（例: raccoon-x-management）</p>
+              <p className="text-slate-400">「アプリを作成」→「Threads」を選択 → アプリ名を設定（例: raccoon-x-management）</p>
             </div>
           </div>
           <div className="flex gap-3">
             <span className="w-6 h-6 bg-purple-700 rounded-full flex items-center justify-center text-white font-bold shrink-0">3</span>
             <div>
               <p className="font-medium text-white">Threads APIを有効化</p>
-              <p className="text-gray-400">アプリダッシュボード → 「Threads API」→ 「セットアップ」→ InstagramビジネスアカウントをThreadsと連携</p>
+              <p className="text-slate-400">アプリダッシュボード → 「Threads API」→ 「セットアップ」→ InstagramビジネスアカウントをThreadsと連携</p>
             </div>
           </div>
           <div className="flex gap-3">
             <span className="w-6 h-6 bg-purple-700 rounded-full flex items-center justify-center text-white font-bold shrink-0">4</span>
             <div>
               <p className="font-medium text-white">アクセストークンを取得</p>
-              <p className="text-gray-400">Graph APIエクスプローラー → threads_publish権限を選択 → 「アクセストークンを生成」</p>
-              <p className="text-gray-500 mt-1">ユーザーIDの取得: GET https://graph.threads.net/v1.0/me?access_token=&#123;token&#125;</p>
+              <p className="text-slate-400">Graph APIエクスプローラー → threads_publish権限を選択 → 「アクセストークンを生成」</p>
+              <p className="text-slate-500 mt-1">ユーザーIDの取得: GET https://graph.threads.net/v1.0/me?access_token=&#123;token&#125;</p>
             </div>
           </div>
           <div className="flex gap-3">
             <span className="w-6 h-6 bg-purple-700 rounded-full flex items-center justify-center text-white font-bold shrink-0">5</span>
             <div>
               <p className="font-medium text-white">Vercelに環境変数を追加</p>
-              <div className="bg-gray-900 rounded p-2 mt-1 font-mono space-y-1">
+              <div className="rounded p-2 mt-1 font-mono space-y-1" style={{ background: 'rgba(0,0,0,0.3)' }}>
                 <div className="text-green-400">THREADS_USER_ID=123456789</div>
                 <div className="text-green-400">THREADS_ACCESS_TOKEN=EAA...</div>
               </div>
-              <p className="text-gray-400 mt-1">Vercel → プロジェクト → Settings → Environment Variables</p>
+              <p className="text-slate-400 mt-1">Vercel → プロジェクト → Settings → Environment Variables</p>
             </div>
           </div>
         </div>

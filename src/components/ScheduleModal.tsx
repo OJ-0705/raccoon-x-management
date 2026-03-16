@@ -3,22 +3,14 @@
 import { useState } from 'react'
 
 interface ScheduleModalProps {
-  postId: string
-  postType: string
-  defaultScheduledAt?: string | null
-  onClose: () => void
-  onScheduled: () => void
+  postId: string; postType: string; defaultScheduledAt?: string | null
+  onClose: () => void; onScheduled: () => void
 }
 
 const OPTIMAL_HOURS: Record<string, number> = {
-  'コンビニまとめ型': 21,
-  '数値比較型': 12,
-  '地雷暴露型': 20,
-  'プロセス共有型': 7,
-  'あるある共感型': 22,
-  'チェックリスト保存型': 21,
-  'Instagram連携型': 18,
-  'その他': 12,
+  'コンビニまとめ型': 21, '数値比較型': 12, '地雷暴露型': 20,
+  'プロセス共有型': 7, 'あるある共感型': 22, 'チェックリスト保存型': 21,
+  'Instagram連携型': 18, 'その他': 12,
 }
 
 const OPTIMAL_REASONS: Record<string, string> = {
@@ -32,26 +24,17 @@ const OPTIMAL_REASONS: Record<string, string> = {
   'その他': '12時 — ランチタイム推奨',
 }
 
-function getOptimalDateTime(postType: string, existingScheduledAt?: string | null): string {
-  if (existingScheduledAt) {
-    return new Date(existingScheduledAt).toISOString().slice(0, 16)
-  }
+function getOptimalDateTime(postType: string, existing?: string | null): string {
+  if (existing) return new Date(existing).toISOString().slice(0, 16)
   const hour = OPTIMAL_HOURS[postType] || 12
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  tomorrow.setHours(hour, 0, 0, 0)
-  // Format as JST-aware local string for datetime-local input
-  const offset = tomorrow.getTimezoneOffset() * 60000
-  return new Date(tomorrow.getTime() - offset).toISOString().slice(0, 16)
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  d.setHours(hour, 0, 0, 0)
+  const offset = d.getTimezoneOffset() * 60000
+  return new Date(d.getTime() - offset).toISOString().slice(0, 16)
 }
 
-export default function ScheduleModal({
-  postId,
-  postType,
-  defaultScheduledAt,
-  onClose,
-  onScheduled,
-}: ScheduleModalProps) {
+export default function ScheduleModal({ postId, postType, defaultScheduledAt, onClose, onScheduled }: ScheduleModalProps) {
   const [dateTime, setDateTime] = useState(getOptimalDateTime(postType, defaultScheduledAt))
   const [loading, setLoading] = useState(false)
   const reason = OPTIMAL_REASONS[postType] || OPTIMAL_REASONS['その他']
@@ -61,60 +44,42 @@ export default function ScheduleModal({
     setLoading(true)
     try {
       const res = await fetch(`/api/posts/${postId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: '予約済み', scheduledAt: new Date(dateTime).toISOString() }),
       })
-      if (res.ok) {
-        onScheduled()
-        onClose()
-      }
-    } finally {
-      setLoading(false)
-    }
+      if (res.ok) { onScheduled(); onClose() }
+    } finally { setLoading(false) }
   }
 
   return (
-    <div
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-gray-800 rounded-2xl p-6 w-full max-w-sm border border-gray-700 shadow-2xl"
-        onClick={e => e.stopPropagation()}
-      >
-        <h3 className="text-base font-bold text-white mb-1">⏰ 投稿スケジュール設定</h3>
-        <p className="text-xs text-gray-400 mb-4">AIが最適な投稿日時を自動提案しています</p>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl p-6 shadow-2xl"
+        style={{ background: 'rgba(8,9,18,0.95)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.12)' }}
+        onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-white mb-1">&#9200; 投稿スケジュール設定</h3>
+        <p className="text-sm text-slate-400 mb-4">AIが最適な投稿日時を提案しています</p>
 
-        <div className="bg-gray-900 rounded-lg p-3 mb-4 border border-gray-700">
+        <div className="rounded-xl p-3 mb-4"
+          style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)' }}>
           <p className="text-xs text-orange-400 font-medium mb-1">推奨理由</p>
-          <p className="text-xs text-gray-300">{reason}</p>
+          <p className="text-sm text-slate-300">{reason}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs text-gray-400 mb-1.5">投稿日時</label>
-            <input
-              type="datetime-local"
-              value={dateTime}
-              onChange={e => setDateTime(e.target.value)}
-              className="w-full px-3 py-2.5 bg-gray-900 border border-gray-600 rounded-xl text-white text-sm focus:outline-none focus:border-orange-500 transition-colors"
-              required
-            />
+            <label className="block text-sm text-slate-400 mb-1.5">投稿日時</label>
+            <input type="datetime-local" value={dateTime} onChange={e => setDateTime(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl text-white text-sm focus:outline-none transition-all"
+              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }} required />
           </div>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl text-sm transition-colors"
-            >
+            <button type="button" onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl text-sm text-slate-300 transition-all"
+              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}>
               キャンセル
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-colors"
-            >
+            <button type="submit" disabled={loading}
+              className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-orange-500/20">
               {loading ? '予約中...' : '予約する'}
             </button>
           </div>

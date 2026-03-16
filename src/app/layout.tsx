@@ -20,7 +20,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja" className="dark">
-      <body className={`${bizUdpGothic.variable} font-sans antialiased bg-gray-900 text-gray-100`}>
+      <body className={`${bizUdpGothic.variable} antialiased`}>
         {children}
       </body>
     </html>
