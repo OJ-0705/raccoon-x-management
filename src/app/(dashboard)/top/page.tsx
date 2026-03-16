@@ -92,6 +92,7 @@ export default function TopPage() {
   const [generating, setGenerating] = useState(false)
   const [schedulePost, setSchedulePost] = useState<Post | null>(null)
   const [approving, setApproving] = useState<string | null>(null)
+  const [regenLoading, setRegenLoading] = useState<string | null>(null)
   // Edit modal state
   const [editPost, setEditPost] = useState<Post | null>(null)
   const [editContent, setEditContent] = useState('')
@@ -169,6 +170,35 @@ export default function TopPage() {
     }
   }
 
+  const handleRegenerate = async (post: Post) => {
+    setRegenLoading(post.id)
+    try {
+      const res = await fetch('/api/ai/rewrite', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: post.content,
+          postType: post.postType,
+          instruction: `以下のルールでリライトしてください：
+1. 300〜500文字に調整する
+2. 冒頭140文字で興味を引くフックを入れる（1文目の文末に「。」を入れない）
+3. 脂質データは具体的に数値で示す
+4. 絵文字は3〜5個程度
+5. ハッシュタグは最後に2個
+6. らくーん🍊のトーン：親しみやすく、ユーモアを交えつつ、データも示す
+7. アカウントテーマ：遺伝子検査で洋梨型とわかった脂質と戦う1人会社社長が、既製品だけで低脂質おつまみをレビュー`,
+        }),
+      })
+      const data = await res.json()
+      if (data.result) {
+        await fetch(`/api/posts/${post.id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: data.result }),
+        })
+        await loadPosts()
+      }
+    } finally { setRegenLoading(null) }
+  }
+
   const handleRewrite = async () => {
     if (!rewriteInstruction.trim() || !editPost) return
     setRewriting(true)
@@ -191,7 +221,7 @@ export default function TopPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content: editContent,
-          scheduledAt: editScheduledAt || null,
+          scheduledAt: editScheduledAt ? new Date(editScheduledAt).toISOString() : null,
         }),
       })
       await loadPosts()
@@ -241,16 +271,17 @@ export default function TopPage() {
           <div className="text-slate-400 text-sm">読み込み中...</div>
         </div>
       ) : posts.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {posts.map((post, i) => {
             const typeColor = POST_TYPE_COLORS[post.postType] || '#6B7280'
+            const isRegen = regenLoading === post.id
             return (
-              <div key={post.id} className="rounded-xl overflow-hidden flex flex-col" style={glass}>
+              <div key={post.id} className="rounded-2xl overflow-hidden flex flex-col" style={glass}>
                 {/* Card header */}
-                <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                  <span className="text-xs text-slate-500 font-mono">#{i + 1}</span>
+                <div className="flex items-center gap-3 px-5 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                  <span className="text-sm text-slate-500 font-mono">#{i + 1}</span>
                   <span
-                    className="text-xs px-2 py-0.5 rounded-full font-medium text-white truncate"
+                    className="text-sm px-3 py-1 rounded-full font-medium text-white truncate"
                     style={{ backgroundColor: typeColor }}
                   >
                     {post.postType}
@@ -260,30 +291,33 @@ export default function TopPage() {
                   </div>
                 </div>
 
-                {/* Content — 150% bigger text */}
-                <div className="px-3 py-3 flex-1">
-                  <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed" style={{ fontSize: '15px' }}>
+                {/* Content */}
+                <div className="px-5 py-5 flex-1">
+                  <p className="text-base text-slate-200 whitespace-pre-wrap leading-relaxed">
                     {post.content}
                   </p>
+                  {(() => { const first = post.content.split('\n')[0] || ''; return first.endsWith('。') })() && (
+                    <p className="text-xs text-yellow-500 mt-2">💡 1文目の「。」を削除するとフックが効果的になります</p>
+                  )}
                 </div>
 
                 {/* Recommended time */}
-                <div className="px-3 pb-2 text-xs text-blue-400">
+                <div className="px-5 pb-3 text-sm text-blue-400">
                   ⏰ {formatDate(post.scheduledAt)}
                 </div>
 
                 {/* Actions */}
-                <div className="grid grid-cols-2 gap-1 px-3 pb-3">
+                <div className="grid grid-cols-2 gap-2 px-5 pb-5">
                   <button
                     onClick={() => handleApprove(post)}
                     disabled={approving === post.id}
-                    className="col-span-2 py-1.5 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-all"
+                    className="col-span-2 py-3 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-all"
                   >
-                    ✅ 承認する
+                    ✅ 承認する（日時変更可）
                   </button>
                   <button
                     onClick={() => openEdit(post)}
-                    className="py-1.5 text-slate-300 rounded-lg text-xs transition-all"
+                    className="py-2.5 text-slate-300 rounded-xl text-sm transition-all"
                     style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
                   >
                     ✏️ 編集
@@ -291,15 +325,23 @@ export default function TopPage() {
                   <button
                     onClick={() => handleApproveDirectly(post.id)}
                     disabled={approving === post.id}
-                    className="py-1.5 disabled:opacity-50 text-slate-300 rounded-lg text-xs transition-all"
+                    className="py-2.5 disabled:opacity-50 text-slate-300 rounded-xl text-sm transition-all"
                     style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
                     title="推奨時刻のまま即承認"
                   >
                     {approving === post.id ? '...' : '⚡ 即承認'}
                   </button>
                   <button
+                    onClick={() => handleRegenerate(post)}
+                    disabled={isRegen}
+                    className="col-span-2 py-2.5 disabled:opacity-50 rounded-xl text-sm font-medium transition-all"
+                    style={{ background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.25)', color: '#c4b5fd' }}
+                  >
+                    {isRegen ? '再生成中...' : '🔄 文章を再生成（300〜500文字）'}
+                  </button>
+                  <button
                     onClick={() => handleReject(post.id)}
-                    className="col-span-2 py-1 bg-red-900/40 hover:bg-red-900/70 text-red-400 rounded-lg text-xs transition-all"
+                    className="col-span-2 py-2 bg-red-900/40 hover:bg-red-900/70 text-red-400 rounded-xl text-sm transition-all"
                   >
                     削除
                   </button>
@@ -330,6 +372,7 @@ export default function TopPage() {
           defaultScheduledAt={schedulePost.scheduledAt}
           onClose={() => setSchedulePost(null)}
           onScheduled={() => { setSchedulePost(null); loadPosts(); generate() }}
+          confirmLabel="この日時で承認"
         />
       )}
 

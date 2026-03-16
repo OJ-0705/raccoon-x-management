@@ -33,11 +33,17 @@ ${isLongForm
   : '- X Premium標準形式（280文字以内）に収める'
 }
 - 最初の140文字で読者を引きつけるフックを入れる
-- 具体的な数値・体験談があればより効果的`,
+- 具体的な数値・体験談があればより効果的
+- 【重要】1文目の文末には「。」を入れない（フックとして「続きが気になる」状態を作るため）`,
       }],
     })
 
-    const result = message.content[0].type === 'text' ? message.content[0].text.trim() : content
+    const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : content
+    // Remove trailing 。 from first line
+    const nl = raw.indexOf('\n')
+    const first = nl >= 0 ? raw.slice(0, nl) : raw
+    const rest = nl >= 0 ? raw.slice(nl) : ''
+    const result = first.replace(/。$/, '') + rest
     return NextResponse.json({ result, generated: true })
   } catch (error) {
     console.error('[ai/rewrite]', error)

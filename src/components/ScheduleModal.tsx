@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 interface ScheduleModalProps {
   postId: string; postType: string; defaultScheduledAt?: string | null
   onClose: () => void; onScheduled: () => void
+  confirmLabel?: string
 }
 
 const TIME_SLOTS = [
@@ -26,7 +27,7 @@ function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
-export default function ScheduleModal({ postId, defaultScheduledAt, onClose, onScheduled }: ScheduleModalProps) {
+export default function ScheduleModal({ postId, defaultScheduledAt, onClose, onScheduled, confirmLabel }: ScheduleModalProps) {
   const today = startOfDay(new Date())
 
   const [viewYear, setViewYear] = useState(today.getFullYear())
@@ -258,7 +259,7 @@ export default function ScheduleModal({ postId, defaultScheduledAt, onClose, onS
                 disabled={saving || !selectedDate || selectedHour === null}
                 className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-orange-500/20"
               >
-                {saving ? '予約中...' : '予約する'}
+                {saving ? '処理中...' : (confirmLabel || '予約する')}
               </button>
             </div>
           </>

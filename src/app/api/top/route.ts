@@ -52,6 +52,14 @@ const TEMPLATES: Record<string, string[]> = {
   ],
 }
 
+/** Remove trailing 。 from the first line (to make it a hook) */
+function removeFirstLinePeriod(text: string): string {
+  const nl = text.indexOf('\n')
+  const first = nl >= 0 ? text.slice(0, nl) : text
+  const rest = nl >= 0 ? text.slice(nl) : ''
+  return first.replace(/。$/, '') + rest
+}
+
 /** Strip hashtags beyond the first maxCount, keeping them at end of text */
 function limitHashtags(content: string, maxCount = 2): string {
   const tagRegex = /#[^\s#\n]+/g
@@ -93,6 +101,7 @@ async function generateWithAI(postType: string): Promise<string> {
 - 冒頭140文字以内で「続きを読みたい」と思わせる一文を置く
 - 具体的な数値を入れる
 - 改行を効果的に使う
+- 【重要】1文目の文末には「。」を入れない（フックとして「続きが気になる」状態を作るため）
 投稿文のみ出力（説明不要）:`,
       }],
     })
@@ -177,7 +186,7 @@ export async function POST() {
 
       const aiContent = await generateWithAI(postType)
       const rawContent = aiContent || getTemplate(postType, existingCount + i)
-      const content = limitHashtags(rawContent, 2)
+      const content = limitHashtags(removeFirstLinePeriod(rawContent), 2)
 
       const post = await prisma.post.create({
         data: {
