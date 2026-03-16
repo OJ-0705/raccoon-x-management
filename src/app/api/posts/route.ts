@@ -13,9 +13,13 @@ export async function GET(req: NextRequest) {
     const sort = searchParams.get('sort')
     const days = searchParams.get('days')
 
+    const platform = searchParams.get('platform')
+
     const where: Record<string, unknown> = {}
     if (status) where.status = status
     if (postType) where.postType = postType
+    if (platform === 'threads') where.platform = { in: ['threads', 'both'] }
+    else if (platform) where.platform = platform
     if (days) {
       const since = new Date()
       since.setDate(since.getDate() - parseInt(days))

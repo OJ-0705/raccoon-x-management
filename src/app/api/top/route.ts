@@ -140,6 +140,7 @@ export async function POST() {
           formatType: 'テキスト',
           status: '承認待ち',
           scheduledAt,
+          platform: 'both',
         },
       })
       generated.push(post)

@@ -20,12 +20,20 @@ model Post {
   retweets     Int       @default(0)
   replies      Int       @default(0)
   bookmarks    Int       @default(0)
-  imageUrls    String?
-  hashtags     String?
-  threadPosts  String?
-  parentPostId String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  imageUrls        String?
+  hashtags         String?
+  threadPosts      String?
+  parentPostId     String?
+  platform         String    @default("x")
+  threadsPostId    String?
+  threadsImp       Int       @default(0)
+  threadsLikes     Int       @default(0)
+  threadsReplies   Int       @default(0)
+  threadsReposts   Int       @default(0)
+  abGroupId        String?
+  abVariant        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 }
 
 model Competitor {

@@ -115,6 +115,15 @@ export async function register() {
                 FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
             END IF;
           END $$;
+
+          ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "platform" TEXT NOT NULL DEFAULT 'x';
+          ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "threadsPostId" TEXT;
+          ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "threadsImp" INTEGER NOT NULL DEFAULT 0;
+          ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "threadsLikes" INTEGER NOT NULL DEFAULT 0;
+          ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "threadsReplies" INTEGER NOT NULL DEFAULT 0;
+          ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "threadsReposts" INTEGER NOT NULL DEFAULT 0;
+          ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "abGroupId" TEXT;
+          ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "abVariant" TEXT;
         `)
         console.log('[db] Tables ready')
       } finally {
