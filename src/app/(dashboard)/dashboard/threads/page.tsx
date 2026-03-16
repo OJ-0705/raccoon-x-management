@@ -13,6 +13,10 @@ interface ThreadsPost {
   threadsLikes: number
   threadsReplies: number
   threadsReposts: number
+  likes: number
+  retweets: number
+  replies: number
+  bookmarks: number
   platform: string
   createdAt: string
 }
