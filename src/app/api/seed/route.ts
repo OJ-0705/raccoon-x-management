@@ -2,9 +2,18 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 
-export async function POST() {
+// GET: auto-seed only when no users exist (safe bootstrap endpoint)
+export async function GET() {
+  const count = await prisma.user.count()
+  if (count > 0) {
+    return NextResponse.json({ message: 'Already seeded', userCount: count })
+  }
+  return runSeed()
+}
+
+async function runSeed() {
   try {
-    const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'raccoon2026', 10)
+    const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'Raccoon2026!', 10)
     await prisma.user.upsert({
       where: { email: process.env.ADMIN_EMAIL || 'admin@raccoon.com' },
       update: {},
@@ -144,4 +153,8 @@ export async function POST() {
       { status: 500 }
     )
   }
+}
+
+export async function POST() {
+  return runSeed()
 }
