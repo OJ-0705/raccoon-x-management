@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import ScheduleModal from './ScheduleModal'
 
 interface Post {
@@ -40,6 +39,13 @@ interface PostCardProps {
 
 export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
   const [showScheduleModal, setShowScheduleModal] = useState(false)
+  // Inline edit modal
+  const [showEdit, setShowEdit] = useState(false)
+  const [editContent, setEditContent] = useState(post.content)
+  const [editScheduledAt, setEditScheduledAt] = useState('')
+  const [editPlatform, setEditPlatform] = useState(post.platform || 'both')
+  const [editNextSlot, setEditNextSlot] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
   const [showImprove, setShowImprove] = useState(false)
   const [improveVariants, setImproveVariants] = useState<string[]>([])
   const [improving, setImproving] = useState(false)
@@ -61,6 +67,55 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
 
   const formatDate = (d?: string | null) =>
     d ? new Date(d).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null
+
+  const openEditModal = async () => {
+    setEditContent(post.content)
+    setEditPlatform(post.platform || 'both')
+    if (post.scheduledAt) {
+      const d = new Date(post.scheduledAt)
+      const pad = (n: number) => n.toString().padStart(2, '0')
+      setEditScheduledAt(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`)
+      setEditNextSlot('')
+    } else {
+      try {
+        const res = await fetch('/api/posts/next-slot')
+        const data = await res.json()
+        if (data.scheduledAt) {
+          const d = new Date(data.scheduledAt)
+          const pad = (n: number) => n.toString().padStart(2, '0')
+          setEditScheduledAt(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`)
+          setEditNextSlot(data.display || '')
+        }
+      } catch { /* ignore */ }
+    }
+    setShowEdit(true)
+  }
+
+  const applySlot = (hour: number) => {
+    if (!editScheduledAt) {
+      const d = new Date()
+      d.setHours(hour, 0, 0, 0)
+      if (d <= new Date()) d.setDate(d.getDate() + 1)
+      const pad = (n: number) => n.toString().padStart(2, '0')
+      setEditScheduledAt(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(hour)}:00`)
+    } else {
+      const base = editScheduledAt.slice(0, 11)
+      setEditScheduledAt(`${base}${String(hour).padStart(2, '0')}:00`)
+    }
+  }
+
+  const handleEditSave = async () => {
+    setEditSaving(true)
+    try {
+      await fetch(`/api/posts/${post.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editContent, scheduledAt: editScheduledAt || null, platform: editPlatform }),
+      })
+      onRefresh?.()
+      setShowEdit(false)
+    } finally { setEditSaving(false) }
+  }
 
   const togglePlatform = async () => {
     const next = platform === 'x' ? 'both' : 'x'
@@ -220,9 +275,9 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
 
         {/* Actions */}
         <div className="flex items-center gap-2 pt-2 flex-wrap" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-          <Link href={`/posts/${post.id}/edit`} className="text-sm px-3 py-1.5 rounded-xl text-slate-300 hover:text-white transition-all" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <button onClick={openEditModal} className="text-sm px-3 py-1.5 rounded-xl text-slate-300 hover:text-white transition-all" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}>
             編集
-          </Link>
+          </button>
           {canSchedule && (
             <button onClick={() => setShowScheduleModal(true)} className="text-sm px-3 py-1.5 bg-orange-500 hover:bg-orange-400 text-white rounded-xl transition-all shadow-sm shadow-orange-500/20">
               スケジュール設定
@@ -252,6 +307,89 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
           )}
         </div>
       </div>
+
+      {/* Inline Edit Modal */}
+      {showEdit && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEdit(false)}>
+          <div className="w-full max-w-lg rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+            style={{ background: 'rgba(8,9,18,0.95)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.12)' }}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-white">✏️ 投稿を編集</h3>
+              <button onClick={() => setShowEdit(false)} className="text-slate-500 hover:text-white w-7 h-7 flex items-center justify-center rounded-lg" style={{ background: 'rgba(255,255,255,0.07)' }}>✕</button>
+            </div>
+            <span className="text-xs px-2 py-0.5 rounded-full text-white mb-4 inline-block" style={{ backgroundColor: typeColor }}>{post.postType}</span>
+
+            {/* Content */}
+            <div className="mb-4">
+              <label className="block text-xs text-slate-400 mb-1.5">投稿内容</label>
+              <textarea
+                value={editContent}
+                onChange={e => setEditContent(e.target.value)}
+                rows={8}
+                className="w-full px-3 py-2.5 rounded-xl text-sm text-slate-200 resize-none focus:outline-none leading-relaxed"
+                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
+              />
+              <p className="text-right text-xs text-slate-500 mt-0.5">{editContent.length}文字</p>
+            </div>
+
+            {/* Schedule */}
+            <div className="mb-4">
+              <label className="block text-xs text-slate-400 mb-1.5">
+                📅 投稿日時
+                {editNextSlot && <span className="text-green-400 ml-2">💡 次の空き: {editNextSlot}</span>}
+              </label>
+              <div className="flex gap-2 mb-2">
+                {[{h: 7, icon: '🌅', label: '朝7時'}, {h: 12, icon: '🌞', label: '昼12時'}, {h: 21, icon: '🌙', label: '夜21時'}].map(s => (
+                  <button key={s.h} onClick={() => applySlot(s.h)}
+                    className="flex-1 py-1.5 rounded-lg text-xs transition-all"
+                    style={editScheduledAt.includes(`T${String(s.h).padStart(2, '0')}`)
+                      ? { background: 'rgba(249,115,22,0.2)', border: '1px solid rgba(249,115,22,0.4)', color: '#fb923c' }
+                      : { background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }
+                    }
+                  >
+                    {s.icon} {s.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="datetime-local"
+                value={editScheduledAt}
+                onChange={e => setEditScheduledAt(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl text-sm text-white focus:outline-none"
+                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
+              />
+            </div>
+
+            {/* Platform */}
+            <div className="mb-5">
+              <label className="block text-xs text-slate-400 mb-1.5">投稿先</label>
+              <div className="flex gap-2">
+                {([['both', '𝕏 + 🧵 両方'], ['x', '𝕏 Xのみ']] as const).map(([val, label]) => (
+                  <button key={val} onClick={() => setEditPlatform(val)}
+                    className="flex-1 py-2 rounded-lg text-xs transition-all"
+                    style={editPlatform === val
+                      ? { background: 'rgba(249,115,22,0.2)', border: '1px solid rgba(249,115,22,0.4)', color: '#fb923c' }
+                      : { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={() => setShowEdit(false)} className="flex-1 py-2.5 rounded-xl text-sm text-slate-300 transition-all" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                キャンセル
+              </button>
+              <button onClick={handleEditSave} disabled={editSaving || !editContent} className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-all">
+                {editSaving ? '保存中...' : '保存する'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Schedule Modal */}
       {showScheduleModal && (

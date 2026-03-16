@@ -119,54 +119,61 @@ export async function GET() {
 /** 1日2投稿スケジュール: 朝7時・夜21時の交互スロット
  *  Find the latest scheduled pending post and propose the next available slot.
  */
-async function nextScheduledAt(offset: number): Promise<Date> {
-  const DAILY_SLOTS = [6, 21] // morning 6am and evening 9pm (peak engagement times)
-  // Get latest scheduled pending post
-  const latest = await prisma.post.findFirst({
-    where: { status: '承認待ち', scheduledAt: { not: null } },
-    orderBy: { scheduledAt: 'desc' },
+const DAILY_SLOTS = [7, 12, 21] // 朝7時 / 昼12時 / 夜21時 (3投稿/日)
+
+/** Find the next available slot not already booked in DB */
+async function nextScheduledAt(): Promise<Date> {
+  const now = new Date()
+
+  // Get all future scheduled posts to avoid collisions
+  const booked = await prisma.post.findMany({
+    where: { scheduledAt: { gte: now } },
     select: { scheduledAt: true },
   })
+  const bookedKeys = new Set(
+    booked
+      .filter(p => p.scheduledAt)
+      .map(p => {
+        const d = new Date(p.scheduledAt!)
+        return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`
+      })
+  )
 
-  const base = latest?.scheduledAt ? new Date(latest.scheduledAt) : new Date()
-  // Determine the next slot from base + offset slots
-  const totalSlots = DAILY_SLOTS.length
-  const baseDay = Math.floor(offset / totalSlots)
-  const slotIndex = offset % totalSlots
-
-  // If base is already a slot, start from the next one
-  const baseHour = base.getHours()
-  const baseSlotIdx = DAILY_SLOTS.indexOf(baseHour)
-  const startSlotIdx = baseSlotIdx >= 0 ? (baseSlotIdx + 1 + (offset % totalSlots)) % totalSlots : slotIndex
-  const dayOffset = baseSlotIdx >= 0
-    ? Math.floor((baseSlotIdx + 1 + offset) / totalSlots)
-    : baseDay
-
-  const candidate = new Date(base)
-  candidate.setDate(base.getDate() + dayOffset)
-  candidate.setHours(DAILY_SLOTS[startSlotIdx], 0, 0, 0)
-
-  // Ensure it's in the future
-  if (candidate <= new Date()) {
-    candidate.setDate(candidate.getDate() + 1)
+  for (let day = 0; day < 21; day++) {
+    for (const hour of DAILY_SLOTS) {
+      const candidate = new Date()
+      candidate.setDate(now.getDate() + day)
+      candidate.setHours(hour, 0, 0, 0)
+      if (candidate <= now) continue
+      const key = `${candidate.getFullYear()}-${candidate.getMonth()}-${candidate.getDate()}-${hour}`
+      if (!bookedKeys.has(key)) {
+        bookedKeys.add(key) // reserve this slot for subsequent calls in the same batch
+        return candidate
+      }
+    }
   }
-  return candidate
+
+  // Fallback: 3 weeks out at 21:00
+  const fallback = new Date()
+  fallback.setDate(fallback.getDate() + 21)
+  fallback.setHours(21, 0, 0, 0)
+  return fallback
 }
 
 export async function POST() {
   try {
     const existingCount = await prisma.post.count({ where: { status: '承認待ち' } })
-    const toGenerate = Math.max(0, 10 - existingCount)
+    const toGenerate = Math.max(0, 15 - existingCount)
 
     if (toGenerate === 0) {
-      return NextResponse.json({ generated: 0, message: '既に10件の承認待ち投稿があります' })
+      return NextResponse.json({ generated: 0, message: '既に15件の承認待ち投稿があります' })
     }
 
     const generated = []
     for (let i = 0; i < toGenerate; i++) {
       const postType = POST_TYPES_ROTATION[(existingCount + i) % POST_TYPES_ROTATION.length]
 
-      const scheduledAt = await nextScheduledAt(i)
+      const scheduledAt = await nextScheduledAt()
 
       const aiContent = await generateWithAI(postType)
       const rawContent = aiContent || getTemplate(postType, existingCount + i)

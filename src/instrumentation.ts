@@ -124,6 +124,15 @@ export async function register() {
           ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "threadsReposts" INTEGER NOT NULL DEFAULT 0;
           ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "abGroupId" TEXT;
           ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "abVariant" TEXT;
+
+          -- Clean up dummy seeded analytics (followers range 1190-1260 = seed values)
+          -- Only runs when no real posts exist (xPostId IS NOT NULL means actually posted to X)
+          DO $$ BEGIN
+            IF (SELECT COUNT(*) FROM "Post" WHERE "xPostId" IS NOT NULL) = 0 THEN
+              DELETE FROM "Analytics" WHERE "followers" >= 1190 AND "followers" <= 1260;
+              DELETE FROM "Post" WHERE status = '投稿済み' AND "xPostId" IS NULL AND impressions > 100;
+            END IF;
+          END $$;
         `)
         console.log('[db] Tables ready')
       } finally {

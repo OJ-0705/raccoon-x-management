@@ -56,7 +56,7 @@ function PlatformBadges({ platform }: { platform?: string }) {
  *  Find the latest scheduled post, then propose the next available slot.
  */
 function proposeNextSchedule(posts: Post[]): string {
-  const SLOTS = [6, 21] // optimal hours (朝6時・夜21時)
+  const SLOTS = [7, 12, 21] // 朝7時・昼12時・夜21時
   const scheduled = posts
     .filter(p => p.scheduledAt)
     .map(p => new Date(p.scheduledAt!).getTime())
@@ -199,7 +199,7 @@ export default function TopPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">🏠 トップ</h1>
-          <p className="text-slate-400 text-xs mt-0.5">AIが生成した承認待ち投稿案 — 1日2投稿（朝6時・夜21時）推奨</p>
+          <p className="text-slate-400 text-xs mt-0.5">AIが生成した承認待ち投稿案 — 1日3投稿（朝7時・昼12時・夜21時）推奨</p>
         </div>
         <button
           onClick={generate}
@@ -213,9 +213,9 @@ export default function TopPage() {
 
       {/* Status bar */}
       <div className="flex items-center gap-3 rounded-xl px-4 py-2.5" style={glass}>
-        <div className={`w-2 h-2 rounded-full ${posts.length >= 10 ? 'bg-green-400' : posts.length > 0 ? 'bg-yellow-400' : 'bg-red-400'}`} />
+        <div className={`w-2 h-2 rounded-full ${posts.length >= 15 ? 'bg-green-400' : posts.length > 0 ? 'bg-yellow-400' : 'bg-red-400'}`} />
         <span className="text-xs text-slate-300">
-          承認待ち: <span className="text-white font-bold">{posts.length}</span> / 10件
+          承認待ち: <span className="text-white font-bold">{posts.length}</span> / 15件
         </span>
         {generating && <span className="text-xs text-orange-400 ml-auto">投稿案を生成中...</span>}
       </div>
@@ -355,7 +355,7 @@ export default function TopPage() {
 
             {/* DateTime picker */}
             <div className="mb-4">
-              <label className="block text-xs text-slate-400 mb-1.5">📅 投稿日時（推奨: 朝6時 or 夜21時）</label>
+              <label className="block text-xs text-slate-400 mb-1.5">📅 投稿日時（推奨: 朝7時 / 昼12時 / 夜21時）</label>
               <input
                 type="datetime-local"
                 value={editScheduledAt}
@@ -363,7 +363,7 @@ export default function TopPage() {
                 className="w-full px-3 py-2.5 rounded-xl text-sm text-white focus:outline-none transition-all"
                 style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
               />
-              <p className="text-[11px] text-slate-500 mt-1">最適投稿時間: 朝6:00・夜21:00（木曜21時は特に効果的）</p>
+              <p className="text-[11px] text-slate-500 mt-1">最適投稿時間: 🌅 朝7:00 / 🌞 昼12:00 / 🌙 夜21:00（木曜21時は特に効果的）</p>
             </div>
 
             <div className="flex gap-2">

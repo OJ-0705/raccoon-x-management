@@ -21,7 +21,7 @@ interface Post {
   createdAt: string
 }
 
-const STATUSES = ['すべて', '下書き', '承認待ち', '予約済み', '投稿済み', '失敗']
+const STATUSES = ['すべて', '予約済み', '投稿済み', '下書き', '失敗']
 const POST_TYPES = ['すべて', 'コンビニまとめ型', '数値比較型', '地雷暴露型', 'プロセス共有型', 'あるある共感型', 'チェックリスト保存型', 'Instagram連携型', 'その他']
 
 function PostsContent() {
@@ -29,7 +29,7 @@ function PostsContent() {
   const [posts, setPosts] = useState<Post[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '承認待ち')
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '予約済み')
   const [typeFilter, setTypeFilter] = useState('すべて')
   const [page, setPage] = useState(1)
 

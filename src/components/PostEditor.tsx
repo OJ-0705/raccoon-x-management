@@ -260,8 +260,9 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
             <label className="text-sm font-medium text-slate-300">投稿内容</label>
             <span className={`text-xs font-mono ${
               isOverLimit ? 'text-red-400'
-              : inRecommended ? 'text-green-400'
-              : charCount >= 140 ? 'text-orange-400'
+              : (inRecommended || charCount > RECOMMENDED_MAX) ? 'text-green-400'
+              : charCount === 140 ? 'text-blue-400'
+              : charCount > 140 ? 'text-yellow-400'
               : 'text-slate-400'
             }`}>
               {charCount.toLocaleString()} / 25,000
@@ -276,23 +277,27 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
             placeholder={isLongForm ? '長文投稿（最大25,000文字）を入力してください...' : '投稿内容を入力してください...'}
           />
 
-          {/* Char range indicators */}
+          {/* Char range indicators — per spec color table */}
           <div className="mt-2 space-y-1">
+            {charCount === 0 && (
+              <p className="text-xs text-slate-500">📱 タイムライン表示範囲: 0〜139文字</p>
+            )}
             {charCount > 0 && charCount < 140 && (
-              <p className="text-xs text-slate-500">
-                📱 あと<span className="text-white font-medium">{140 - charCount}</span>文字でタイムライン表示の限界（140文字）
+              <p className="text-xs text-slate-400">
+                📱 タイムライン表示範囲 — あと<span className="text-white font-medium">{140 - charCount}</span>文字で「さらに表示」ライン
               </p>
             )}
-            {charCount >= 140 && charCount < RECOMMENDED_MIN && (
-              <p className="text-xs text-orange-400">
-                📱 140文字超え — タイムラインで「さらに表示」が出ます。<span className="text-slate-400">あと{RECOMMENDED_MIN - charCount}文字で推奨範囲</span>
-              </p>
+            {charCount === 140 && (
+              <p className="text-xs text-blue-400">📱 ここから先は「さらに表示」で表示されます</p>
+            )}
+            {charCount > 140 && charCount < RECOMMENDED_MIN && (
+              <p className="text-xs text-yellow-400">もう少し詳しく書くとGood！（あと{RECOMMENDED_MIN - charCount}文字で推奨範囲）</p>
             )}
             {inRecommended && (
-              <p className="text-xs text-green-400">✅ 推奨範囲（300〜500文字）— 詳細クリックを促す最適な長さです</p>
+              <p className="text-xs text-green-400">✅ 推奨範囲内！エンゲージメント期待大（300〜500文字）</p>
             )}
             {charCount > RECOMMENDED_MAX && !isOverLimit && (
-              <p className="text-xs text-blue-400">📝 長文モード — 人柄・価値観が伝わり濃いファンを育てます（最大25,000文字）</p>
+              <p className="text-xs text-green-400">📝 長文OK！記事型投稿として効果的（最大25,000文字）</p>
             )}
             {isOverLimit && (
               <p className="text-xs text-red-400">25,000文字を超えています（{(charCount - HARD_LIMIT).toLocaleString()}文字オーバー）</p>
@@ -300,26 +305,26 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
           </div>
         </div>
 
-        {/* Engagement guidance */}
-        <div className="rounded-xl p-4" style={{ background: 'rgba(249,115,22,0.07)', border: '1px solid rgba(249,115,22,0.2)' }}>
-          <h4 className="text-xs font-bold text-orange-300 mb-2.5">📊 エンゲージメント最大化のヒント</h4>
-          <div className="space-y-2 text-xs text-slate-400">
-            <div className="flex gap-2">
-              <span className="text-orange-400 shrink-0 mt-0.5">▶</span>
-              <span><span className="text-white">冒頭140文字</span>で興味を引く — タイムラインに表示されるのはここまで。続きを読ませる一文を置く</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-orange-400 shrink-0 mt-0.5">▶</span>
-              <span><span className="text-green-300">300〜500文字</span>が推奨範囲 — 「詳細クリック」を促しアルゴリズム評価が上がる（滞在時間↑）</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-orange-400 shrink-0 mt-0.5">▶</span>
-              <span>長文（500文字超）は<span className="text-white">人柄・考え方まで伝わり濃いファンを育てる</span>。X Premiumで最大25,000文字OK</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-orange-400 shrink-0 mt-0.5">▶</span>
-              <span>最適投稿時間: <span className="text-white">朝6時・夜21時</span>（木曜夜21時は全体最高潮 — エンゲージメント+150%以上）</span>
-            </div>
+        {/* Engagement guidance — per spec */}
+        <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(249,115,22,0.07)', border: '1px solid rgba(249,115,22,0.2)' }}>
+          <h4 className="text-xs font-bold text-orange-300">💡 エンゲージメントを高める投稿のコツ</h4>
+          <div className="text-xs text-slate-300 space-y-1.5">
+            <p className="font-medium text-white">【冒頭140文字が勝負】</p>
+            <p className="text-slate-400">タイムラインには最初の140文字しか表示されません。「続きが気になる！」と思わせるフックを冒頭に入れましょう。</p>
+          </div>
+          <div className="text-xs text-slate-300 space-y-1.5">
+            <p className="font-medium text-white">【推奨文字数: <span className="text-green-300">300〜500文字</span>】</p>
+            <p className="text-slate-400">長文投稿は「詳細クリック」を促し、アルゴリズム評価がUPします。商品レビューや感想は、詳細まで書いた方が読者に響きます。</p>
+          </div>
+          <div className="text-xs space-y-1">
+            <p className="font-medium text-white">【投稿構成の黄金パターン】</p>
+            <p className="text-slate-400">① <span className="text-slate-200">冒頭（1〜140文字）</span>: 結論・驚き・問いかけでフック</p>
+            <p className="text-slate-400">② <span className="text-slate-200">本文（141〜400文字）</span>: 詳細レビュー・データ・感想</p>
+            <p className="text-slate-400">③ <span className="text-slate-200">締め（最後の数行）</span>: CTA、ハッシュタグ、次回予告</p>
+          </div>
+          <div className="text-xs">
+            <p className="font-medium text-white">【ベストな投稿時間】</p>
+            <p className="text-slate-400 mt-0.5">🌅 朝7時 / 🌞 昼12時 / 🌙 夜21時 が反応の良い時間帯です</p>
           </div>
         </div>
 
