@@ -29,7 +29,7 @@ function PostsContent() {
   const [posts, setPosts] = useState<Post[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'すべて')
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '承認待ち')
   const [typeFilter, setTypeFilter] = useState('すべて')
   const [page, setPage] = useState(1)
 
@@ -64,27 +64,6 @@ function PostsContent() {
       fetchPosts()
     } catch (error) {
       console.error(error)
-    }
-  }
-
-  const handlePost = async (id: string) => {
-    if (!confirm('この投稿をXに投稿しますか？')) return
-    try {
-      const res = await fetch('/api/x/post', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postId: id }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        alert(data.simulated ? '投稿をシミュレートしました（X APIキー未設定）' : '投稿しました！')
-        fetchPosts()
-      } else {
-        alert('投稿に失敗しました: ' + (data.error || '不明なエラー'))
-      }
-    } catch (error) {
-      console.error(error)
-      alert('投稿に失敗しました')
     }
   }
 
@@ -150,13 +129,13 @@ function PostsContent() {
         </div>
       ) : posts.length > 0 ? (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {posts.map(post => (
               <PostCard
                 key={post.id}
                 post={post}
                 onDelete={handleDelete}
-                onPost={handlePost}
+                onRefresh={fetchPosts}
               />
             ))}
           </div>

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 
 const navItems = [
+  { href: '/top', label: 'トップ', icon: '🏠' },
   { href: '/', label: 'ダッシュボード', icon: '📊' },
   { href: '/posts', label: '投稿管理', icon: '📝' },
   { href: '/posts/new', label: '新規投稿', icon: '✏️' },

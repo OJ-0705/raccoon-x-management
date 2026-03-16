@@ -10,9 +10,32 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20')
     const skip = (page - 1) * limit
 
+    const sort = searchParams.get('sort')
+    const days = searchParams.get('days')
+
     const where: Record<string, unknown> = {}
     if (status) where.status = status
     if (postType) where.postType = postType
+    if (days) {
+      const since = new Date()
+      since.setDate(since.getDate() - parseInt(days))
+      where.createdAt = { gte: since }
+    }
+
+    if (sort === 'engagement') {
+      const all = await prisma.post.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      })
+      all.sort((a, b) => {
+        const scoreA = a.likes + a.retweets * 2 + a.replies + a.bookmarks * 3
+        const scoreB = b.likes + b.retweets * 2 + b.replies + b.bookmarks * 3
+        return scoreB - scoreA
+      })
+      const posts = all.slice(skip, skip + limit)
+      return NextResponse.json({ posts, total: all.length, page, limit })
+    }
 
     const [posts, total] = await Promise.all([
       prisma.post.findMany({

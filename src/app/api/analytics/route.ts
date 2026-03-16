@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     const postsByType = await prisma.post.groupBy({
       by: ['postType'],
       _count: { id: true },
-      _sum: { impressions: true, likes: true },
+      _sum: { impressions: true, likes: true, retweets: true, replies: true, bookmarks: true },
     })
 
     return NextResponse.json({

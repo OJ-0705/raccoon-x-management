@@ -13,6 +13,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params
+    const body = await req.json()
+    const data: Record<string, unknown> = {}
+    if (body.status !== undefined) data.status = body.status
+    if (body.scheduledAt !== undefined) data.scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null
+    if (body.content !== undefined) data.content = body.content
+    const post = await prisma.post.update({ where: { id }, data })
+    return NextResponse.json(post)
+  } catch (error) {
+    console.error(error)
+    return NextResponse.json({ error: '投稿の更新に失敗しました' }, { status: 500 })
+  }
+}
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params

@@ -22,7 +22,7 @@ export default function StatsCard({ title, value, icon, change, changePositive, 
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs text-gray-400 mb-1">{title}</p>
-          <p className="text-2xl font-bold text-white">
+          <p className="text-3xl font-bold text-white">
             {typeof value === 'number' ? value.toLocaleString() : value}
           </p>
           {change && (
