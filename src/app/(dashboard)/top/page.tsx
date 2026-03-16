@@ -29,6 +29,10 @@ export default function TopPage() {
   const [generating, setGenerating] = useState(false)
   const [schedulePost, setSchedulePost] = useState<Post | null>(null)
   const [approving, setApproving] = useState<string | null>(null)
+  // Edit modal state
+  const [editPost, setEditPost] = useState<Post | null>(null)
+  const [editContent, setEditContent] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const loadPosts = useCallback(async () => {
     try {
@@ -51,16 +55,10 @@ export default function TopPage() {
   }, [loadPosts])
 
   useEffect(() => {
-    loadPosts().then(() => {
-      // Auto-generate if needed
-      generate()
-    })
+    loadPosts().then(() => generate())
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleApprove = async (post: Post) => {
-    // Open schedule modal with pre-filled optimal time
-    setSchedulePost(post)
-  }
+  const handleApprove = (post: Post) => setSchedulePost(post)
 
   const handleApproveDirectly = async (postId: string) => {
     setApproving(postId)
@@ -76,7 +74,6 @@ export default function TopPage() {
         }),
       })
       await loadPosts()
-      // Generate a replacement
       generate()
     } finally {
       setApproving(null)
@@ -93,6 +90,27 @@ export default function TopPage() {
     }
   }
 
+  const openEdit = (post: Post) => {
+    setEditPost(post)
+    setEditContent(post.content)
+  }
+
+  const handleSave = async () => {
+    if (!editPost) return
+    setSaving(true)
+    try {
+      await fetch(`/api/posts/${editPost.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editContent }),
+      })
+      await loadPosts()
+      setEditPost(null)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return '未設定'
     return new Date(dateStr).toLocaleDateString('ja-JP', {
@@ -101,7 +119,7 @@ export default function TopPage() {
   }
 
   return (
-    <div className="space-y-5 max-w-2xl">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -126,59 +144,66 @@ export default function TopPage() {
         {generating && <span className="text-xs text-orange-400 ml-auto">投稿案を生成中...</span>}
       </div>
 
-      {/* Posts */}
+      {/* Posts — 3-column grid */}
       {loading ? (
         <div className="flex items-center justify-center h-48">
           <div className="text-gray-400 text-sm">読み込み中...</div>
         </div>
       ) : posts.length > 0 ? (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {posts.map((post, i) => {
             const typeColor = POST_TYPE_COLORS[post.postType] || '#6B7280'
             return (
-              <div key={post.id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-                {/* Post header */}
-                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-700 bg-gray-750">
+              <div key={post.id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden flex flex-col">
+                {/* Card header */}
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-700">
                   <span className="text-xs text-gray-500 font-mono">#{i + 1}</span>
                   <span
-                    className="text-xs px-2 py-0.5 rounded-full font-medium text-white"
+                    className="text-xs px-2 py-0.5 rounded-full font-medium text-white truncate"
                     style={{ backgroundColor: typeColor }}
                   >
                     {post.postType}
                   </span>
-                  <div className="ml-auto flex items-center gap-1.5 text-xs text-blue-400">
-                    <span>⏰</span>
-                    <span>推奨: {formatDate(post.scheduledAt)}</span>
-                  </div>
                 </div>
 
                 {/* Content */}
-                <div className="px-4 py-3">
-                  <p className="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">
+                <div className="px-3 py-3 flex-1">
+                  <p className="text-xs text-gray-200 whitespace-pre-wrap leading-relaxed">
                     {post.content}
                   </p>
                 </div>
 
+                {/* Recommended time */}
+                <div className="px-3 pb-2 text-xs text-blue-400">
+                  ⏰ {formatDate(post.scheduledAt)}
+                </div>
+
                 {/* Actions */}
-                <div className="flex items-center gap-2 px-4 py-3 border-t border-gray-700 bg-gray-900/30">
+                <div className="grid grid-cols-2 gap-1 px-3 pb-3">
                   <button
                     onClick={() => handleApprove(post)}
                     disabled={approving === post.id}
-                    className="flex-1 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-colors"
+                    className="col-span-2 py-1.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-colors"
                   >
-                    ✅ 投稿を承認しますか？
+                    ✅ 承認する
+                  </button>
+                  <button
+                    onClick={() => openEdit(post)}
+                    className="py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs transition-colors"
+                  >
+                    ✏️ 編集
                   </button>
                   <button
                     onClick={() => handleApproveDirectly(post.id)}
                     disabled={approving === post.id}
-                    className="px-3 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-300 rounded-lg text-xs transition-colors"
-                    title="推奨時刻のまま承認"
+                    className="py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-300 rounded-lg text-xs transition-colors"
+                    title="推奨時刻のまま即承認"
                   >
                     {approving === post.id ? '...' : '⚡ 即承認'}
                   </button>
                   <button
                     onClick={() => handleReject(post.id)}
-                    className="px-3 py-2 bg-red-900/60 hover:bg-red-900 text-red-300 rounded-lg text-xs transition-colors"
+                    className="col-span-2 py-1 bg-red-900/40 hover:bg-red-900/70 text-red-400 rounded-lg text-xs transition-colors"
                   >
                     削除
                   </button>
@@ -208,12 +233,59 @@ export default function TopPage() {
           postType={schedulePost.postType}
           defaultScheduledAt={schedulePost.scheduledAt}
           onClose={() => setSchedulePost(null)}
-          onScheduled={() => {
-            setSchedulePost(null)
-            loadPosts()
-            generate()
-          }}
+          onScheduled={() => { setSchedulePost(null); loadPosts(); generate() }}
         />
+      )}
+
+      {/* Edit Modal */}
+      {editPost && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={() => setEditPost(null)}
+        >
+          <div
+            className="bg-gray-800 rounded-2xl p-6 w-full max-w-lg border border-gray-700 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-bold text-white">✏️ 投稿を編集</h3>
+              <span
+                className="text-xs px-2 py-0.5 rounded-full text-white"
+                style={{ backgroundColor: POST_TYPE_COLORS[editPost.postType] || '#6B7280' }}
+              >
+                {editPost.postType}
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 mb-3">ハッシュタグは最大2つまで。内容を自由に編集してください。</p>
+            <textarea
+              value={editContent}
+              onChange={e => setEditContent(e.target.value)}
+              rows={10}
+              className="w-full px-3 py-2.5 bg-gray-900 border border-gray-600 rounded-xl text-sm text-white resize-none focus:outline-none focus:border-orange-500 transition-colors leading-relaxed"
+            />
+            <div className="flex items-center justify-between mt-1 mb-4">
+              <span className="text-xs text-gray-500">{editContent.length}文字</span>
+              <span className={`text-xs ${editContent.length > 140 ? 'text-red-400' : 'text-gray-500'}`}>
+                推奨: 140文字以内
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEditPost(null)}
+                className="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl text-sm transition-colors"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-colors"
+              >
+                {saving ? '保存中...' : '保存する'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -52,6 +52,22 @@ const TEMPLATES: Record<string, string[]> = {
   ],
 }
 
+/** Strip hashtags beyond the first maxCount, keeping them at end of text */
+function limitHashtags(content: string, maxCount = 2): string {
+  const tagRegex = /#[^\s#\n]+/g
+  const tags = [...content.matchAll(tagRegex)].map(m => m[0])
+  if (tags.length <= maxCount) return content
+  // Remove excess tags (keep the first maxCount unique ones)
+  const keep = new Set(tags.slice(0, maxCount))
+  const excess = tags.slice(maxCount)
+  let result = content
+  for (const tag of excess) {
+    result = result.replace(tag, '')
+  }
+  // Clean up extra whitespace/newlines
+  return result.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trimEnd()
+}
+
 function getTemplate(postType: string, index: number): string {
   const templates = TEMPLATES[postType] || TEMPLATES['コンビニまとめ型']
   return templates[index % templates.length]
@@ -114,7 +130,8 @@ export async function POST() {
       scheduledAt.setHours(hour, 0, 0, 0)
 
       const aiContent = await generateWithAI(postType)
-      const content = aiContent || getTemplate(postType, existingCount + i)
+      const rawContent = aiContent || getTemplate(postType, existingCount + i)
+      const content = limitHashtags(rawContent, 2)
 
       const post = await prisma.post.create({
         data: {

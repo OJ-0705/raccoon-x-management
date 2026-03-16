@@ -1,12 +1,11 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import StatsCard from '@/components/StatsCard'
 import PostCard from '@/components/PostCard'
 import Link from 'next/link'
 
 interface AnalyticsData {
-  analytics: { date: string; followers?: number; totalImpressions?: number }[]
+  analytics: { date: string; followers?: number; totalImpressions?: number; totalEngagements?: number }[]
   postStats: { impressions?: number; likes?: number; retweets?: number; replies?: number; bookmarks?: number }
   postCount: number
   postsByType: {
@@ -42,6 +41,26 @@ const POST_TYPE_COLORS: Record<string, string> = {
   'その他': '#6B7280',
 }
 
+function StatBig({ title, value, icon, color }: { title: string; value: string | number; icon: string; color: string }) {
+  const colors: Record<string, string> = {
+    orange: 'text-orange-400 bg-orange-500/10',
+    blue: 'text-blue-400 bg-blue-500/10',
+    red: 'text-red-400 bg-red-500/10',
+    green: 'text-green-400 bg-green-500/10',
+  }
+  return (
+    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs text-gray-400">{title}</p>
+        <span className={`text-lg p-1.5 rounded-lg ${colors[color]}`}>{icon}</span>
+      </div>
+      <p className="text-4xl font-bold text-white">
+        {typeof value === 'number' ? value.toLocaleString() : value}
+      </p>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
   const [highEngPosts, setHighEngPosts] = useState<Post[]>([])
@@ -64,7 +83,6 @@ export default function DashboardPage() {
 
   const latestAnalytics = analyticsData?.analytics?.[analyticsData.analytics.length - 1]
 
-  // Compute engagement rate per type
   const engRates = (analyticsData?.postsByType || [])
     .map(t => {
       const imp = t._sum.impressions || 0
@@ -88,30 +106,100 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-white">ダッシュボード</h1>
-        <Link
-          href="/posts/new"
-          className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-medium transition-colors"
-        >
+        <Link href="/posts/new" className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-medium transition-colors">
           ✏️ 新規投稿
         </Link>
       </div>
 
-      {/* Stats row */}
+      {/* Stats — 4 big cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatsCard title="フォロワー" value={latestAnalytics?.followers || 0} icon="👥" color="orange" />
-        <StatsCard title="総インプレッション" value={analyticsData?.postStats?.impressions || 0} icon="👀" color="blue" />
-        <StatsCard title="総いいね" value={analyticsData?.postStats?.likes || 0} icon="❤️" color="red" />
-        <StatsCard title="総投稿数" value={analyticsData?.postCount || 0} icon="📝" color="green" />
+        <StatBig title="フォロワー" value={latestAnalytics?.followers || 0} icon="👥" color="orange" />
+        <StatBig title="総インプレッション" value={analyticsData?.postStats?.impressions || 0} icon="👀" color="blue" />
+        <StatBig title="総いいね" value={analyticsData?.postStats?.likes || 0} icon="❤️" color="red" />
+        <StatBig title="総投稿数" value={analyticsData?.postCount || 0} icon="📝" color="green" />
       </div>
 
-      {/* Main content */}
+      {/* Main — left 2/3 (analytics) + right 1/3 (high-eng posts) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* High engagement posts (left 2/3) */}
-        <div className="lg:col-span-2 space-y-3">
+
+        {/* LEFT: analytics (2 columns) */}
+        <div className="lg:col-span-2 space-y-4">
+
+          {/* Engagement rate by type — bigger */}
+          <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+            <h2 className="text-sm font-bold text-white mb-4">📊 投稿タイプ別エンゲージメント率</h2>
+            {engRates.length > 0 ? (
+              <div className="space-y-3">
+                {engRates.map(item => (
+                  <div key={item.postType}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: POST_TYPE_COLORS[item.postType] || '#6B7280' }} />
+                        <span className="text-sm text-gray-200">{item.postType}</span>
+                        <span className="text-xs text-gray-500">（{item.count}件）</span>
+                      </div>
+                      <span className="text-sm font-bold text-white">{item.rate.toFixed(2)}%</span>
+                    </div>
+                    <div className="h-2.5 bg-gray-700 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${(item.rate / maxRate) * 100}%`, backgroundColor: POST_TYPE_COLORS[item.postType] || '#6B7280' }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-6">投稿済みデータなし</p>
+            )}
+          </div>
+
+          {/* 7-day trend — bigger */}
+          <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+            <h2 className="text-sm font-bold text-white mb-4">📈 7日間トレンド</h2>
+            <div className="space-y-2.5">
+              {analyticsData?.analytics?.map(item => (
+                <div key={item.date} className="flex items-center justify-between py-1 border-b border-gray-700 last:border-0">
+                  <span className="text-sm text-gray-300 w-20">
+                    {new Date(item.date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
+                  </span>
+                  <div className="flex gap-6 text-sm">
+                    <span className="text-orange-400">👥 {(item.followers || 0).toLocaleString()}</span>
+                    <span className="text-blue-400">👀 {(item.totalImpressions || 0).toLocaleString()}</span>
+                    <span className="text-green-400">💡 {(item.totalEngagements || 0).toLocaleString()}</span>
+                  </div>
+                </div>
+              ))}
+              {!analyticsData?.analytics?.length && <p className="text-sm text-gray-500 text-center py-4">データなし</p>}
+            </div>
+          </div>
+
+          {/* Quick actions */}
+          <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+            <h2 className="text-sm font-bold text-white mb-3">⚡ クイックアクション</h2>
+            <div className="grid grid-cols-2 gap-2">
+              <Link href="/top" className="flex items-center gap-2 px-4 py-3 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-lg text-sm transition-colors">
+                🏠 承認待ち投稿を確認
+              </Link>
+              <Link href="/posts/new" className="flex items-center gap-2 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm transition-colors">
+                ✏️ 新規投稿作成
+              </Link>
+              <Link href="/posts?status=下書き" className="flex items-center gap-2 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm transition-colors">
+                📋 下書き一覧
+              </Link>
+              <Link href="/calendar" className="flex items-center gap-2 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm transition-colors">
+                📅 カレンダーを見る
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT: high engagement posts (1 column — narrower) */}
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-white">🔥 高エンゲージメント投稿</h2>
             <Link href="/posts?status=投稿済み" className="text-xs text-orange-400 hover:text-orange-300">
-              すべて見る →
+              すべて →
             </Link>
           </div>
           {highEngPosts.length > 0 ? (
@@ -121,7 +209,7 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <div className="bg-gray-800 rounded-xl p-8 text-center border border-gray-700">
+            <div className="bg-gray-800 rounded-xl p-6 text-center border border-gray-700">
               <div className="text-3xl mb-2">📝</div>
               <p className="text-gray-400 text-xs">投稿済みの投稿がありません</p>
               <Link href="/posts/new" className="inline-block mt-3 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs transition-colors">
@@ -129,83 +217,6 @@ export default function DashboardPage() {
               </Link>
             </div>
           )}
-        </div>
-
-        {/* Right column */}
-        <div className="space-y-4">
-          {/* Engagement rate by type */}
-          <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-            <h2 className="text-xs font-bold text-white mb-3">📊 投稿タイプ別エンゲージメント率</h2>
-            {engRates.length > 0 ? (
-              <div className="space-y-2.5">
-                {engRates.map(item => (
-                  <div key={item.postType}>
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-1.5">
-                        <div
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{ backgroundColor: POST_TYPE_COLORS[item.postType] || '#6B7280' }}
-                        />
-                        <span className="text-xs text-gray-300 truncate max-w-[110px]">{item.postType}</span>
-                      </div>
-                      <span className="text-xs text-gray-400 ml-1">{item.rate.toFixed(1)}%</span>
-                    </div>
-                    <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${(item.rate / maxRate) * 100}%`,
-                          backgroundColor: POST_TYPE_COLORS[item.postType] || '#6B7280',
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-500 text-center py-3">投稿済みデータなし</p>
-            )}
-          </div>
-
-          {/* 7-day trend */}
-          <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-            <h2 className="text-xs font-bold text-white mb-3">📈 7日間トレンド</h2>
-            <div className="space-y-1.5">
-              {analyticsData?.analytics?.slice(-5).map(item => (
-                <div key={item.date} className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">
-                    {new Date(item.date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
-                  </span>
-                  <div className="flex gap-3 text-xs">
-                    <span className="text-orange-400">👥 {(item.followers || 0).toLocaleString()}</span>
-                    <span className="text-blue-400">👀 {(item.totalImpressions || 0).toLocaleString()}</span>
-                  </div>
-                </div>
-              ))}
-              {!analyticsData?.analytics?.length && (
-                <p className="text-xs text-gray-500 text-center py-2">データなし</p>
-              )}
-            </div>
-          </div>
-
-          {/* Quick actions */}
-          <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-            <h2 className="text-xs font-bold text-white mb-3">⚡ クイックアクション</h2>
-            <div className="space-y-1.5">
-              <Link href="/top" className="flex items-center gap-2 w-full px-3 py-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-lg text-xs transition-colors">
-                🏠 承認待ち投稿を確認
-              </Link>
-              <Link href="/posts/new" className="flex items-center gap-2 w-full px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs transition-colors">
-                ✏️ 新規投稿作成
-              </Link>
-              <Link href="/posts?status=下書き" className="flex items-center gap-2 w-full px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs transition-colors">
-                📋 下書き一覧
-              </Link>
-              <Link href="/calendar" className="flex items-center gap-2 w-full px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs transition-colors">
-                📅 カレンダーを見る
-              </Link>
-            </div>
-          </div>
         </div>
       </div>
     </div>
