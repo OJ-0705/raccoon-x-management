@@ -3,18 +3,20 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function Sidebar() {
   const pathname = usePathname()
   const isDashboard = pathname === '/' || pathname.startsWith('/dashboard')
   const [dashOpen, setDashOpen] = useState(isDashboard)
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  // Close sidebar on route change (mobile)
+  useEffect(() => { setMobileOpen(false) }, [pathname])
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/'
-    // Exact match always wins
     if (pathname === href) return true
-    // /posts should NOT match when on /posts/new (which has its own nav entry)
     if (href === '/posts') return pathname.startsWith('/posts/') && !pathname.startsWith('/posts/new')
     return pathname.startsWith(href + '/')
   }
@@ -33,15 +35,8 @@ export default function Sidebar() {
         : 'text-slate-500 hover:bg-white/[0.05] hover:text-white border border-transparent'
     }`
 
-  return (
-    <aside className="fixed left-0 top-0 h-full w-56 flex flex-col z-50"
-      style={{
-        background: 'rgba(6, 7, 13, 0.75)',
-        backdropFilter: 'blur(24px)',
-        WebkitBackdropFilter: 'blur(24px)',
-        borderRight: '1px solid rgba(255,255,255,0.07)',
-      }}
-    >
+  const sidebarContent = (
+    <>
       {/* Logo */}
       <div className="p-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
         <div className="flex items-center gap-2.5">
@@ -50,6 +45,12 @@ export default function Sidebar() {
             <div className="text-sm font-bold text-orange-400">らくーん</div>
             <div className="text-xs text-slate-500">X自動運用管理</div>
           </div>
+          {/* Close button — mobile only */}
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="ml-auto flex md:hidden items-center justify-center w-7 h-7 rounded-lg text-slate-400 hover:text-white"
+            style={{ background: 'rgba(255,255,255,0.08)' }}
+          >✕</button>
         </div>
       </div>
 
@@ -59,7 +60,6 @@ export default function Sidebar() {
           <span>🏠</span><span>トップ</span>
         </Link>
 
-        {/* ダッシュボード accordion */}
         <div>
           <button
             onClick={() => setDashOpen(o => !o)}
@@ -114,6 +114,44 @@ export default function Sidebar() {
           <span>🚪</span><span>ログアウト</span>
         </button>
       </div>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* Mobile hamburger button — only when sidebar is closed */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className={`fixed top-3 left-3 z-[60] flex md:hidden items-center justify-center w-10 h-10 rounded-xl text-white transition-all ${mobileOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        style={{ background: 'rgba(6,7,13,0.9)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.12)' }}
+        aria-label="メニュー"
+      >
+        <span className="text-lg leading-none">☰</span>
+      </button>
+
+      {/* Mobile overlay backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-[55] md:hidden"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`fixed left-0 top-0 h-full w-56 flex flex-col z-[60] transition-transform duration-300 ease-in-out ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+        style={{
+          background: 'rgba(6, 7, 13, 0.95)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          borderRight: '1px solid rgba(255,255,255,0.07)',
+        }}
+      >
+        {sidebarContent}
+      </aside>
+    </>
   )
 }

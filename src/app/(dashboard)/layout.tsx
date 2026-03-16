@@ -16,10 +16,26 @@ export default async function DashboardLayout({
     <SessionProvider>
       <div className="flex h-screen">
         <Sidebar />
-        <main className="flex-1 ml-56 overflow-y-auto">
-          <div className="p-6">
+        <main className="flex-1 md:ml-56 overflow-y-auto">
+          {/* Mobile header */}
+          <div className="sticky top-0 z-40 flex md:hidden items-center justify-center h-12 px-4" style={{ background: 'rgba(6,7,13,0.95)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🍊</span>
+              <span className="text-sm font-bold text-orange-400">らくーん</span>
+            </div>
+          </div>
+          <div className="p-4 md:p-6">
             {children}
           </div>
+          {/* Mobile FAB — new post */}
+          <a
+            href="/posts/new"
+            className="fixed bottom-5 right-5 flex md:hidden items-center justify-center w-14 h-14 rounded-full text-white text-2xl shadow-2xl z-50 transition-transform active:scale-95"
+            style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 4px 20px rgba(249,115,22,0.5)' }}
+            aria-label="新規投稿"
+          >
+            ✏️
+          </a>
         </main>
       </div>
     </SessionProvider>

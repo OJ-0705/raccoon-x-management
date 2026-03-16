@@ -38,12 +38,12 @@ const glassCard = {
 
 function StatBig({ title, value, icon, accent }: { title: string; value: string | number; icon: string; accent: string }) {
   return (
-    <div className="rounded-2xl p-5" style={glassCard}>
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-sm text-slate-400">{title}</p>
-        <span className="text-xl p-2 rounded-xl" style={{ background: accent + '20' }}>{icon}</span>
+    <div className="rounded-2xl p-3 md:p-5" style={glassCard}>
+      <div className="flex items-center justify-between mb-2 md:mb-3">
+        <p className="text-xs md:text-sm text-slate-400">{title}</p>
+        <span className="text-lg md:text-xl p-1.5 md:p-2 rounded-xl" style={{ background: accent + '20' }}>{icon}</span>
       </div>
-      <p className="text-4xl font-bold text-white tracking-tight">
+      <p className="text-2xl md:text-4xl font-bold text-white tracking-tight">
         {typeof value === 'number' ? value.toLocaleString() : value}
       </p>
     </div>
@@ -117,14 +117,14 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">ダッシュボード — X</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-white">ダッシュボード — X</h1>
           {Object.keys(optimalHours).length > 0 && (
-            <p className="text-sm text-green-400 mt-0.5">✅ 最適投稿時間を学習済み</p>
+            <p className="text-xs md:text-sm text-green-400 mt-0.5">✅ 最適投稿時間を学習済み</p>
           )}
         </div>
         <div className="flex items-center gap-2">
           <NotificationBell />
-          <Link href="/posts/new" className="px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-orange-500/20">
+          <Link href="/posts/new" className="hidden md:flex px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-orange-500/20">
             ✏️ 新規投稿
           </Link>
         </div>
@@ -211,10 +211,10 @@ export default function DashboardPage() {
                   <span className="text-sm text-slate-300 w-20">
                     {new Date(item.date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
                   </span>
-                  <div className="flex gap-5 text-sm">
+                  <div className="flex gap-2 md:gap-5 text-xs md:text-sm">
                     <span className="text-orange-400">👥 {(item.followers || 0).toLocaleString()}</span>
                     <span className="text-blue-400">👀 {(item.totalImpressions || 0).toLocaleString()}</span>
-                    <span className="text-green-400">💡 {(item.totalEngagements || 0).toLocaleString()}</span>
+                    <span className="text-green-400 hidden sm:inline">💡 {(item.totalEngagements || 0).toLocaleString()}</span>
                   </div>
                 </div>
               ))}

@@ -46,6 +46,8 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
   const [editPlatform, setEditPlatform] = useState(post.platform || 'both')
   const [editNextSlot, setEditNextSlot] = useState('')
   const [editSaving, setEditSaving] = useState(false)
+  const [rewriteInstruction, setRewriteInstruction] = useState('')
+  const [rewriting, setRewriting] = useState(false)
   const [showImprove, setShowImprove] = useState(false)
   const [improveVariants, setImproveVariants] = useState<string[]>([])
   const [improving, setImproving] = useState(false)
@@ -102,6 +104,19 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
       const base = editScheduledAt.slice(0, 11)
       setEditScheduledAt(`${base}${String(hour).padStart(2, '0')}:00`)
     }
+  }
+
+  const handleRewrite = async () => {
+    if (!rewriteInstruction.trim()) return
+    setRewriting(true)
+    try {
+      const res = await fetch('/api/ai/rewrite', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editContent, instruction: rewriteInstruction, postType: post.postType, formatType: post.formatType }),
+      })
+      const data = await res.json()
+      if (data.result) { setEditContent(data.result); setRewriteInstruction('') }
+    } finally { setRewriting(false) }
   }
 
   const handleEditSave = async () => {
@@ -376,6 +391,30 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
                     {label}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* AI Rewrite */}
+            <div className="mb-5 rounded-xl p-3" style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)' }}>
+              <p className="text-xs text-purple-300 font-medium mb-2">🤖 AIに書き換えを依頼</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={rewriteInstruction}
+                  onChange={e => setRewriteInstruction(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleRewrite()}
+                  placeholder="例: もっと短く / 数値を強調 / フックを強くして"
+                  className="flex-1 px-3 py-2 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none"
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
+                />
+                <button
+                  onClick={handleRewrite}
+                  disabled={rewriting || !rewriteInstruction.trim()}
+                  className="px-3 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition-all whitespace-nowrap"
+                  style={{ background: 'rgba(139,92,246,0.4)', border: '1px solid rgba(139,92,246,0.5)' }}
+                >
+                  {rewriting ? '...' : '書き換え'}
+                </button>
               </div>
             </div>
 
