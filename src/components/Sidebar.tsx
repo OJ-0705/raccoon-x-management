@@ -10,8 +10,14 @@ export default function Sidebar() {
   const isDashboard = pathname === '/' || pathname.startsWith('/dashboard')
   const [dashOpen, setDashOpen] = useState(isDashboard)
 
-  const isActive = (href: string) =>
-    href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/')
+  const isActive = (href: string) => {
+    if (href === '/') return pathname === '/'
+    // Exact match always wins
+    if (pathname === href) return true
+    // /posts should NOT match when on /posts/new (which has its own nav entry)
+    if (href === '/posts') return pathname.startsWith('/posts/') && !pathname.startsWith('/posts/new')
+    return pathname.startsWith(href + '/')
+  }
 
   const linkCls = (href: string) =>
     `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${

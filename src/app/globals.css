@@ -9,15 +9,21 @@
   --foreground: #e8ecf4;
 }
 
-body {
+html {
   background:
-    radial-gradient(ellipse 80% 50% at 15% -10%, rgba(249, 115, 22, 0.13) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 85% 110%, rgba(139, 92, 246, 0.09) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 50% at 15% -10%, rgba(249, 115, 22, 0.14) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 85% 110%, rgba(139, 92, 246, 0.10) 0%, transparent 60%),
     #06070d;
   background-attachment: fixed;
+  min-height: 100%;
+}
+
+body {
+  background: transparent;
   color: var(--foreground);
   min-height: 100vh;
   font-size: 15px;
+  font-family: var(--font-biz-udp-gothic), 'BIZ UDPGothic', 'Hiragino Sans', 'Yu Gothic', sans-serif;
 }
 
 * {

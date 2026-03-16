@@ -21,6 +21,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (body.status !== undefined) data.status = body.status
     if (body.scheduledAt !== undefined) data.scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null
     if (body.content !== undefined) data.content = body.content
+    if (body.platform !== undefined) data.platform = body.platform
     const post = await prisma.post.update({ where: { id }, data })
     return NextResponse.json(post)
   } catch (error) {

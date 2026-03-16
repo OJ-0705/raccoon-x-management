@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
         hashtags: body.hashtags ? JSON.stringify(body.hashtags) : null,
         threadPosts: body.threadPosts ? JSON.stringify(body.threadPosts) : null,
         parentPostId: body.parentPostId || null,
+        platform: body.platform || 'both',
       },
     })
     return NextResponse.json(post, { status: 201 })

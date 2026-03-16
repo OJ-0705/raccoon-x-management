@@ -63,6 +63,7 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
     return []
   })
   const [hashtagInput, setHashtagInput] = useState('')
+  const [platform, setPlatform] = useState<'both' | 'x'>('both')
   const [templates, setTemplates] = useState<Template[]>([])
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -125,6 +126,7 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
         status: saveStatus,
         scheduledAt: scheduledAt || null,
         hashtags: hashtags.length ? hashtags : null,
+        platform,
       }
 
       let res
@@ -296,6 +298,22 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
                 #{tag}
                 <button onClick={() => handleRemoveHashtag(tag)} className="hover:text-red-400">×</button>
               </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Platform */}
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-2">投稿先プラットフォーム</label>
+          <div className="flex gap-2">
+            {([['both', '𝕏 + 🧵 XとThreads両方'], ['x', '𝕏 Xのみ']] as const).map(([val, label]) => (
+              <button key={val} onClick={() => setPlatform(val)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all"
+                style={platform === val
+                  ? { background: 'rgba(249,115,22,0.2)', border: '1px solid rgba(249,115,22,0.4)', color: '#fb923c' }
+                  : { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}>
+                {label}
+              </button>
             ))}
           </div>
         </div>
