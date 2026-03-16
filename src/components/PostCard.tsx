@@ -81,7 +81,7 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
     try {
       const res = await fetch('/api/ai/improve', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: post.content, postType: post.postType }),
+        body: JSON.stringify({ content: post.content, postType: post.postType, formatType: post.formatType }),
       })
       const data = await res.json()
       setImproveVariants(data.variants || [])
@@ -107,7 +107,7 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
     try {
       const res = await fetch('/api/ai/score', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: post.content, postType: post.postType }),
+        body: JSON.stringify({ content: post.content, postType: post.postType, formatType: post.formatType }),
       })
       const data = await res.json()
       setScore(data)

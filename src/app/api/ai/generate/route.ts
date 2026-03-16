@@ -19,7 +19,7 @@ const POST_TYPE_DESCRIPTIONS: Record<string, string> = {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { postType, keywords, additionalContext } = body
+    const { postType, keywords, additionalContext, formatType } = body
 
     if (!process.env.ANTHROPIC_API_KEY) {
       // Return a template if no API key
@@ -44,10 +44,9 @@ ${additionalContext ? `追加コンテキスト: ${additionalContext}` : ''}
 テーマ: 低脂質食品・コンビニおつまみ・脂質制限
 
 制約:
-- 140文字以内（ハッシュタグ含む）
-- 改行を効果的に使う
-- 具体的な数値を入れる（できれば）
-- 最後に関連ハッシュタグを2-3個
+${formatType === '長文投稿'
+  ? '- 長文投稿形式（X Premium対応・最大25,000文字）\n- 詳細な解説・体験談・まとめを含むコラム形式\n- 見出し・箇条書きを活用して読みやすく構成\n- ハッシュタグ2-3個'
+  : '- 280文字以内（X Premium標準制限・ハッシュタグ含む）\n- 改行を効果的に使う\n- 具体的な数値を入れる（できれば）\n- 最後に関連ハッシュタグを2-3個'}
 - 絵文字を適切に使用
 - 日本語で書く
 
@@ -55,7 +54,7 @@ ${additionalContext ? `追加コンテキスト: ${additionalContext}` : ''}
 
     const message = await client.messages.create({
       model: 'claude-opus-4-5',
-      max_tokens: 300,
+      max_tokens: formatType === '長文投稿' ? 3000 : 400,
       messages: [{ role: 'user', content: prompt }],
     })
 

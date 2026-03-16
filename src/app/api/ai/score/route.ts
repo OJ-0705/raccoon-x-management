@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 
 export async function POST(req: NextRequest) {
-  const { content, postType } = await req.json()
+  const { content, postType, formatType } = await req.json()
+  const isLongForm = formatType === '長文投稿'
 
   const charCount = content.length
   const hasHashtag = /#\S+/.test(content)
@@ -14,9 +15,18 @@ export async function POST(req: NextRequest) {
 
   // Base heuristic score
   let score = 50
-  if (charCount >= 60 && charCount <= 120) score += 10
-  else if (charCount < 30) score -= 15
-  else if (charCount > 140) score -= 10
+  if (isLongForm) {
+    // Long-form scoring (X Premium, up to 25,000 chars)
+    if (charCount >= 500 && charCount <= 5000) score += 10
+    else if (charCount < 200) score -= 10
+    if (lineBreaks >= 8) score += 8
+    else if (lineBreaks >= 4) score += 4
+  } else {
+    // Standard tweet scoring (X Premium: 280 chars)
+    if (charCount >= 60 && charCount <= 200) score += 10
+    else if (charCount < 30) score -= 15
+    else if (charCount > 280) score -= 10
+  }
   if (hasHashtag) score += 5
   if (hasEmoji) score += 5
   if (hasNumber) score += 8

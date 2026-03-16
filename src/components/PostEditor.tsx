@@ -28,7 +28,11 @@ const POST_TYPES = [
   'その他',
 ]
 
-const FORMAT_TYPES = ['テキスト', '画像付き', 'スレッド', '引用RT', 'リプライ']
+const FORMAT_TYPES = ['テキスト', '画像付き', 'スレッド', '引用RT', 'リプライ', '長文投稿']
+
+const CHAR_LIMIT: Record<string, number> = {
+  '長文投稿': 25000,
+}
 const STATUSES = ['下書き', '承認待ち', '予約済み']
 
 const POST_TYPE_COLORS: Record<string, string> = {
@@ -85,7 +89,7 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
       const res = await fetch('/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postType, keywords, additionalContext: '' }),
+        body: JSON.stringify({ postType, formatType, keywords, additionalContext: '' }),
       })
       const data = await res.json()
       if (data.content) {
@@ -158,8 +162,9 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
     }
   }
 
+  const charLimit = CHAR_LIMIT[formatType] || 280
   const charCount = content.length
-  const isOverLimit = charCount > 140
+  const isOverLimit = charCount > charLimit
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -251,8 +256,8 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
         <div>
           <div className="flex items-center justify-between mb-2">
             <label className="text-sm font-medium text-slate-300">投稿内容</label>
-            <span className={`text-xs font-mono ${isOverLimit ? 'text-red-400' : charCount > 120 ? 'text-yellow-400' : 'text-slate-400'}`}>
-              {charCount}/140
+            <span className={`text-xs font-mono ${isOverLimit ? 'text-red-400' : charCount > charLimit * 0.85 ? 'text-yellow-400' : 'text-slate-400'}`}>
+              {charCount}/{charLimit.toLocaleString()}
             </span>
           </div>
           <textarea
@@ -264,7 +269,7 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
             placeholder="投稿内容を入力してください..."
           />
           {isOverLimit && (
-            <p className="text-xs text-red-400 mt-1">140文字を超えています（{charCount - 140}文字オーバー）</p>
+            <p className="text-xs text-red-400 mt-1">{charLimit.toLocaleString()}文字を超えています（{charCount - charLimit}文字オーバー）</p>
           )}
         </div>
 

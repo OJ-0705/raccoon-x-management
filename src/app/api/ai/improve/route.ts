@@ -3,7 +3,8 @@ import Anthropic from '@anthropic-ai/sdk'
 
 export async function POST(req: NextRequest) {
   try {
-    const { content, postType } = await req.json()
+    const { content, postType, formatType } = await req.json()
+    const isLongForm = formatType === '長文投稿'
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
@@ -34,6 +35,10 @@ ${content}
 - 読者の感情を動かす表現に変える
 - ハッシュタグは最大2つ
 - 各バリアントは明確に異なるアプローチ
+${isLongForm
+  ? '- X Premium長文投稿形式（最大25,000文字）で詳細に展開してよい\n- 見出しや箇条書きを使って読みやすく構成する'
+  : '- X Premium標準形式（280文字以内）に収める'
+}
 
 以下の形式で出力（===で区切る）:
 [バリアント1]
