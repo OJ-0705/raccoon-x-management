@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('admin@raccoon.com')
-  const [password, setPassword] = useState('raccoon2026')
+  const [password, setPassword] = useState('Raccoon2026!')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [seeding, setSeeding] = useState(false)
