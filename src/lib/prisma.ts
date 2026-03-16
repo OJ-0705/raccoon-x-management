@@ -1,15 +1,16 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
-import { Pool } from 'pg'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
 function createPrismaClient() {
-  const pool = new Pool({ connectionString: process.env.STORAGE_URL })
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const adapter = new PrismaPg(pool as any)
+  // pg.Pool インスタンスではなく PoolConfig を渡すことで
+  // dual package hazard（pg の型定義の競合）を回避する
+  const adapter = new PrismaPg({
+    connectionString: process.env.STORAGE_URL ?? '',
+  })
   return new PrismaClient({ adapter })
 }
 
