@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 export async function GET() {
-  // Check all possible DB env var names Vercel/Neon might set
   const candidates = [
     'STORAGE_URL',
     'STORAGE_URL_NON_POOLING',
@@ -16,10 +15,10 @@ export async function GET() {
   const env: Record<string, string | boolean> = {
     NEXTAUTH_SECRET: !!process.env.NEXTAUTH_SECRET,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL ?? '(not set)',
+    VERCEL_URL: process.env.VERCEL_URL ?? '(not set)',
   }
   for (const key of candidates) {
     const val = process.env[key]
-    // Show first 40 chars of value so we can confirm the URL
     env[key] = val ? val.slice(0, 40) + '...' : false
   }
 
@@ -35,6 +34,15 @@ export async function GET() {
     checks.db = 'error'
     checks.dbError = err instanceof Error ? err.message : String(err)
     return NextResponse.json(checks, { status: 500 })
+  }
+
+  // Check if tables exist and user count
+  try {
+    const userCount = await prisma.user.count()
+    checks.userCount = userCount
+    checks.seedNeeded = userCount === 0
+  } catch (err) {
+    checks.userCountError = err instanceof Error ? err.message : String(err)
   }
 
   return NextResponse.json(checks)
