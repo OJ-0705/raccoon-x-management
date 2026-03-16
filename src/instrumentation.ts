@@ -1,18 +1,27 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    // 全体を try-catch で包み、DB初期化失敗でもサーバーが起動できるようにする
     try {
       const { Pool } = await import('pg')
 
+      // Try all possible env var names that Vercel/Neon integration may set
       const connectionString =
-        process.env.STORAGE_URL_NON_POOLING || process.env.STORAGE_URL
+        process.env.STORAGE_URL_NON_POOLING ||
+        process.env.STORAGE_URL ||
+        process.env.POSTGRES_URL_NON_POOLING ||
+        process.env.DATABASE_URL_UNPOOLED ||
+        process.env.POSTGRES_URL ||
+        process.env.POSTGRES_PRISMA_URL ||
+        process.env.DATABASE_URL
 
       if (!connectionString) {
         console.warn('[db] No connection string found, skipping table initialization')
         return
       }
 
-      const pool = new Pool({ connectionString })
+      const pool = new Pool({
+        connectionString,
+        ssl: connectionString.includes('localhost') ? false : { rejectUnauthorized: false },
+      })
 
       const client = await pool.connect()
       try {
@@ -113,7 +122,6 @@ export async function register() {
         await pool.end()
       }
     } catch (error) {
-      // 非致命的エラー：ログに残すがサーバー起動はブロックしない
       console.error('[db] Init error (non-fatal):', error)
     }
   }
