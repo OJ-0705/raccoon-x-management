@@ -7,6 +7,7 @@ interface Post {
   id: string
   content: string
   postType: string
+  platform?: string
   status: string
   scheduledAt?: string | null
   createdAt: string
@@ -31,6 +32,60 @@ const glass = {
   boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
 }
 
+function PlatformBadges({ platform }: { platform?: string }) {
+  const showX = !platform || platform === 'x' || platform === 'both'
+  const showT = !platform || platform === 'threads' || platform === 'both'
+  return (
+    <div className="flex items-center gap-1">
+      {showX && (
+        <span className="text-[10px] px-1.5 py-0.5 rounded font-bold text-white" style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.2)' }}>
+          𝕏
+        </span>
+      )}
+      {showT && (
+        <span className="text-[10px] px-1.5 py-0.5 rounded font-bold text-white" style={{ background: 'rgba(139,92,246,0.4)', border: '1px solid rgba(139,92,246,0.4)' }}>
+          🧵
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Propose the next scheduled datetime based on existing scheduled posts.
+ *  Strategy: 2 posts/day — 7:00 and 21:00.
+ *  Find the latest scheduled post, then propose the next available slot.
+ */
+function proposeNextSchedule(posts: Post[]): string {
+  const SLOTS = [7, 21] // optimal hours
+  const scheduled = posts
+    .filter(p => p.scheduledAt)
+    .map(p => new Date(p.scheduledAt!).getTime())
+
+  const base = scheduled.length > 0 ? new Date(Math.max(...scheduled)) : new Date()
+  // Try to find the next slot on the same day or the day after
+  const candidate = new Date(base)
+  candidate.setSeconds(0)
+  candidate.setMinutes(0)
+
+  for (let d = 0; d < 14; d++) {
+    for (const hour of SLOTS) {
+      candidate.setDate(base.getDate() + d)
+      candidate.setHours(hour, 0, 0, 0)
+      if (candidate.getTime() > Date.now() + 60000 && !scheduled.includes(candidate.getTime())) {
+        // Format for datetime-local input
+        const pad = (n: number) => n.toString().padStart(2, '0')
+        return `${candidate.getFullYear()}-${pad(candidate.getMonth() + 1)}-${pad(candidate.getDate())}T${pad(hour)}:00`
+      }
+    }
+  }
+  // fallback: tomorrow 21:00
+  const fallback = new Date()
+  fallback.setDate(fallback.getDate() + 1)
+  fallback.setHours(21, 0, 0, 0)
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${fallback.getFullYear()}-${pad(fallback.getMonth() + 1)}-${pad(fallback.getDate())}T21:00`
+}
+
 export default function TopPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
@@ -40,6 +95,7 @@ export default function TopPage() {
   // Edit modal state
   const [editPost, setEditPost] = useState<Post | null>(null)
   const [editContent, setEditContent] = useState('')
+  const [editScheduledAt, setEditScheduledAt] = useState('')
   const [saving, setSaving] = useState(false)
 
   const loadPosts = useCallback(async () => {
@@ -101,6 +157,14 @@ export default function TopPage() {
   const openEdit = (post: Post) => {
     setEditPost(post)
     setEditContent(post.content)
+    // Pre-fill with proposed next schedule
+    if (post.scheduledAt) {
+      const d = new Date(post.scheduledAt)
+      const pad = (n: number) => n.toString().padStart(2, '0')
+      setEditScheduledAt(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`)
+    } else {
+      setEditScheduledAt(proposeNextSchedule(posts))
+    }
   }
 
   const handleSave = async () => {
@@ -110,7 +174,10 @@ export default function TopPage() {
       await fetch(`/api/posts/${editPost.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: editContent }),
+        body: JSON.stringify({
+          content: editContent,
+          scheduledAt: editScheduledAt || null,
+        }),
       })
       await loadPosts()
       setEditPost(null)
@@ -132,7 +199,7 @@ export default function TopPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">🏠 トップ</h1>
-          <p className="text-slate-400 text-xs mt-0.5">AIが生成した承認待ち投稿案</p>
+          <p className="text-slate-400 text-xs mt-0.5">AIが生成した承認待ち投稿案 — 1日2投稿（朝7時・夜21時）推奨</p>
         </div>
         <button
           onClick={generate}
@@ -173,11 +240,14 @@ export default function TopPage() {
                   >
                     {post.postType}
                   </span>
+                  <div className="ml-auto">
+                    <PlatformBadges platform={post.platform} />
+                  </div>
                 </div>
 
-                {/* Content */}
+                {/* Content — 150% bigger text */}
                 <div className="px-3 py-3 flex-1">
-                  <p className="text-xs text-slate-200 whitespace-pre-wrap leading-relaxed">
+                  <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed" style={{ fontSize: '15px' }}>
                     {post.content}
                   </p>
                 </div>
@@ -248,7 +318,7 @@ export default function TopPage() {
         />
       )}
 
-      {/* Edit Modal */}
+      {/* Edit Modal — with datetime picker */}
       {editPost && (
         <div
           className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
@@ -278,10 +348,24 @@ export default function TopPage() {
             />
             <div className="flex items-center justify-between mt-1 mb-4">
               <span className="text-xs text-slate-500">{editContent.length}文字</span>
-              <span className={`text-xs ${editContent.length > 140 ? 'text-red-400' : 'text-slate-500'}`}>
-                推奨: 140文字以内
+              <span className={`text-xs ${editContent.length > 280 ? 'text-red-400' : 'text-slate-500'}`}>
+                推奨: 280文字以内
               </span>
             </div>
+
+            {/* DateTime picker */}
+            <div className="mb-4">
+              <label className="block text-xs text-slate-400 mb-1.5">📅 投稿日時（推奨: 朝7時 or 夜21時）</label>
+              <input
+                type="datetime-local"
+                value={editScheduledAt}
+                onChange={e => setEditScheduledAt(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl text-sm text-white focus:outline-none transition-all"
+                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
+              />
+              <p className="text-[11px] text-slate-500 mt-1">ニッチアカウントの最適投稿時間: 朝7:00（起床後）・夜21:00（就寝前）</p>
+            </div>
+
             <div className="flex gap-2">
               <button
                 onClick={() => setEditPost(null)}

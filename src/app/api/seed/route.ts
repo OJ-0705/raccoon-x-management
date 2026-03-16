@@ -85,64 +85,6 @@ async function runSeed() {
       }
     }
 
-    // Seed sample analytics
-    const today = new Date()
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(today)
-      date.setDate(date.getDate() - i)
-      date.setHours(0, 0, 0, 0)
-      await prisma.analytics.upsert({
-        where: { date },
-        update: {},
-        create: {
-          date,
-          followers: 1200 + Math.floor(Math.random() * 50),
-          totalImpressions: 5000 + Math.floor(Math.random() * 2000),
-          totalEngagements: 200 + Math.floor(Math.random() * 100),
-        },
-      })
-    }
-
-    // Seed sample posts
-    const samplePosts = [
-      {
-        content: 'セブンで買える。脂質5g以下おつまみ3選。\n\n①サラダチキン（脂質2.5g）\n②あたりめ（脂質1.2g）\n③茎わかめ（脂質0g）\n\nポテチの脂質は30g以上。\nこれなら飲みながらでも罪悪感ゼロ🍺\n\n忘れないようにブックマーク📌\n\n#低脂質おつまみ #洋なし型',
-        postType: 'コンビニまとめ型',
-        formatType: 'テキスト',
-        status: '投稿済み',
-        impressions: 12500,
-        likes: 342,
-        retweets: 89,
-        replies: 23,
-        bookmarks: 156,
-      },
-      {
-        content: '衝撃の事実。\n\nポテチ1袋の脂質：35g\nサラダチキン1個の脂質：2.5g\n\n→ポテチはサラダチキンの14倍。\n\n洋なし型体質（脂質で太りやすい）の僕には、\nこの差が人生を変える。\n\n#低脂質おつまみ #脂質制限',
-        postType: '数値比較型',
-        formatType: 'テキスト',
-        status: '投稿済み',
-        impressions: 8900,
-        likes: 234,
-        retweets: 67,
-        replies: 15,
-        bookmarks: 98,
-      },
-      {
-        content: '【脂質制限中あるある】\n\n・スーパーで必ず裏面の成分表を見る\n・「ノンフライ」の文字にときめく\n・揚げ物を見ると脂質計算が始まる\n・せんべいが親友になる\n・居酒屋で頼めるメニューが3つしかない\n\n共感した人、いいねください🙋‍♂️\n\n#脂質制限 #洋なし型',
-        postType: 'あるある共感型',
-        formatType: 'テキスト',
-        status: '下書き',
-        impressions: 0,
-        likes: 0,
-        retweets: 0,
-        replies: 0,
-        bookmarks: 0,
-      },
-    ]
-    for (const p of samplePosts) {
-      await prisma.post.create({ data: p })
-    }
-
     return NextResponse.json({ success: true, message: 'シード完了' })
   } catch (error) {
     console.error('[seed error]', error)

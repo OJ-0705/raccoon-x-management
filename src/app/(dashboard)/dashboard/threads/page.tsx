@@ -61,13 +61,18 @@ function StatCard({ title, value, icon, color }: { title: string; value: number;
 export default function ThreadsDashboardPage() {
   const [posts, setPosts] = useState<ThreadsPost[]>([])
   const [loading, setLoading] = useState(true)
-  const hasCredentials = true // We'll check at runtime
+  const [threadsConfigured, setThreadsConfigured] = useState<boolean | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/posts?platform=threads&status=投稿済み&limit=20')
-      const data = await res.json()
-      setPosts(data.posts || [])
+      const [postsRes, accountsRes] = await Promise.all([
+        fetch('/api/posts?platform=threads&status=投稿済み&limit=20'),
+        fetch('/api/accounts'),
+      ])
+      const postsData = await postsRes.json()
+      const accountsData = await accountsRes.json()
+      setPosts(postsData.posts || [])
+      setThreadsConfigured(accountsData.threads?.configured ?? false)
     } finally {
       setLoading(false)
     }
@@ -119,8 +124,16 @@ export default function ThreadsDashboardPage() {
         </Link>
       </div>
 
-      {/* Setup notice if no posts */}
-      {posts.length === 0 && (
+      {/* Threads connection status */}
+      {threadsConfigured === true ? (
+        <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)' }}>
+          <span className="text-xl">✅</span>
+          <div>
+            <p className="text-sm font-bold text-green-300">Threads連携済み</p>
+            <p className="text-xs text-slate-400">投稿時に「Threadsにも投稿」をONにすると自動投稿されます。</p>
+          </div>
+        </div>
+      ) : threadsConfigured === false ? (
         <div className="rounded-xl p-5" style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)' }}>
           <h3 className="text-sm font-bold text-purple-300 mb-2">🧵 Threads連携の設定が必要です</h3>
           <p className="text-xs text-slate-300 mb-3">
@@ -132,10 +145,9 @@ export default function ThreadsDashboardPage() {
           </div>
           <p className="text-xs text-slate-400 mt-3">
             設定方法は下部の「Threads API設定手順」を参照してください。
-            設定後、投稿時に「Threadsにも投稿」をONにすると自動的に連携されます。
           </p>
         </div>
-      )}
+      ) : null}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

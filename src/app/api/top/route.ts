@@ -111,6 +111,43 @@ export async function GET() {
   }
 }
 
+/** 1日2投稿スケジュール: 朝7時・夜21時の交互スロット
+ *  Find the latest scheduled pending post and propose the next available slot.
+ */
+async function nextScheduledAt(offset: number): Promise<Date> {
+  const DAILY_SLOTS = [7, 21] // morning and evening
+  // Get latest scheduled pending post
+  const latest = await prisma.post.findFirst({
+    where: { status: '承認待ち', scheduledAt: { not: null } },
+    orderBy: { scheduledAt: 'desc' },
+    select: { scheduledAt: true },
+  })
+
+  const base = latest?.scheduledAt ? new Date(latest.scheduledAt) : new Date()
+  // Determine the next slot from base + offset slots
+  const totalSlots = DAILY_SLOTS.length
+  const baseDay = Math.floor(offset / totalSlots)
+  const slotIndex = offset % totalSlots
+
+  // If base is already a slot, start from the next one
+  const baseHour = base.getHours()
+  const baseSlotIdx = DAILY_SLOTS.indexOf(baseHour)
+  const startSlotIdx = baseSlotIdx >= 0 ? (baseSlotIdx + 1 + (offset % totalSlots)) % totalSlots : slotIndex
+  const dayOffset = baseSlotIdx >= 0
+    ? Math.floor((baseSlotIdx + 1 + offset) / totalSlots)
+    : baseDay
+
+  const candidate = new Date(base)
+  candidate.setDate(base.getDate() + dayOffset)
+  candidate.setHours(DAILY_SLOTS[startSlotIdx], 0, 0, 0)
+
+  // Ensure it's in the future
+  if (candidate <= new Date()) {
+    candidate.setDate(candidate.getDate() + 1)
+  }
+  return candidate
+}
+
 export async function POST() {
   try {
     const existingCount = await prisma.post.count({ where: { status: '承認待ち' } })
@@ -123,11 +160,8 @@ export async function POST() {
     const generated = []
     for (let i = 0; i < toGenerate; i++) {
       const postType = POST_TYPES_ROTATION[(existingCount + i) % POST_TYPES_ROTATION.length]
-      const hour = OPTIMAL_HOURS[postType] || 12
 
-      const scheduledAt = new Date()
-      scheduledAt.setDate(scheduledAt.getDate() + existingCount + i + 1)
-      scheduledAt.setHours(hour, 0, 0, 0)
+      const scheduledAt = await nextScheduledAt(i)
 
       const aiContent = await generateWithAI(postType)
       const rawContent = aiContent || getTemplate(postType, existingCount + i)

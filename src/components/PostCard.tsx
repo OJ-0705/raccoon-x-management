@@ -45,7 +45,7 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
   const [improving, setImproving] = useState(false)
   const [selectedVariant, setSelectedVariant] = useState<string | null>(null)
   const [savingVariant, setSavingVariant] = useState(false)
-  const [platform, setPlatform] = useState(post.platform || 'x')
+  const [platform, setPlatform] = useState(post.platform || 'both')
   const [updatingPlatform, setUpdatingPlatform] = useState(false)
   // Score
   const [score, setScore] = useState<{ score: number; predictedEngagement: number; feedback: string } | null>(null)
