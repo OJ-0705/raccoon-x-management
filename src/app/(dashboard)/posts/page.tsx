@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { Suspense, useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import PostCard from '@/components/PostCard'
 import Link from 'next/link'
@@ -24,7 +24,7 @@ interface Post {
 const STATUSES = ['すべて', '下書き', '承認待ち', '予約済み', '投稿済み', '失敗']
 const POST_TYPES = ['すべて', 'コンビニまとめ型', '数値比較型', '地雷暴露型', 'プロセス共有型', 'あるある共感型', 'チェックリスト保存型', 'Instagram連携型', 'その他']
 
-export default function PostsPage() {
+function PostsContent() {
   const searchParams = useSearchParams()
   const [posts, setPosts] = useState<Post[]>([])
   const [total, setTotal] = useState(0)
@@ -197,5 +197,17 @@ export default function PostsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function PostsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-400">読み込み中...</div>
+      </div>
+    }>
+      <PostsContent />
+    </Suspense>
   )
 }
