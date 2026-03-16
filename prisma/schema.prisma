@@ -3,9 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("STORAGE_URL")
-  directUrl = env("STORAGE_URL_NON_POOLING")
+  provider = "postgresql"
 }
 
 model Post {

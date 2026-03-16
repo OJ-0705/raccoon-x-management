@@ -5,4 +5,7 @@ export default defineConfig({
   migrations: {
     path: "prisma/migrations",
   },
+  datasource: {
+    url: process.env.STORAGE_URL_NON_POOLING ?? process.env.STORAGE_URL ?? "",
+  },
 });
