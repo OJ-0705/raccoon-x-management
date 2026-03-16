@@ -68,7 +68,7 @@ export default function SettingsPage() {
     try {
       const res = await fetch('/api/seed', { method: 'POST' })
       const data = await res.json()
-      setSeedMessage(data.success ? '✅ ' + data.message : '❌ ' + data.error)
+      setSeedMessage(data.success ? '✅ ' + data.message : '❌ ' + data.error + (data.details ? '\n詳細: ' + data.details : ''))
       if (data.success) fetchTemplates()
     } catch {
       setSeedMessage('❌ シードに失敗しました')

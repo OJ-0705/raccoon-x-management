@@ -136,7 +136,12 @@ export async function POST() {
 
     return NextResponse.json({ success: true, message: 'シード完了' })
   } catch (error) {
-    console.error(error)
-    return NextResponse.json({ error: 'シード失敗', details: String(error) }, { status: 500 })
+    console.error('[seed error]', error)
+    const message = error instanceof Error ? error.message : String(error)
+    const stack = error instanceof Error ? error.stack : undefined
+    return NextResponse.json(
+      { error: 'シード失敗', details: message, stack },
+      { status: 500 }
+    )
   }
 }
