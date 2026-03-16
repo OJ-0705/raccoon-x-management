@@ -56,7 +56,7 @@ function PlatformBadges({ platform }: { platform?: string }) {
  *  Find the latest scheduled post, then propose the next available slot.
  */
 function proposeNextSchedule(posts: Post[]): string {
-  const SLOTS = [7, 21] // optimal hours
+  const SLOTS = [6, 21] // optimal hours (朝6時・夜21時)
   const scheduled = posts
     .filter(p => p.scheduledAt)
     .map(p => new Date(p.scheduledAt!).getTime())
@@ -199,7 +199,7 @@ export default function TopPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">🏠 トップ</h1>
-          <p className="text-slate-400 text-xs mt-0.5">AIが生成した承認待ち投稿案 — 1日2投稿（朝7時・夜21時）推奨</p>
+          <p className="text-slate-400 text-xs mt-0.5">AIが生成した承認待ち投稿案 — 1日2投稿（朝6時・夜21時）推奨</p>
         </div>
         <button
           onClick={generate}
@@ -355,7 +355,7 @@ export default function TopPage() {
 
             {/* DateTime picker */}
             <div className="mb-4">
-              <label className="block text-xs text-slate-400 mb-1.5">📅 投稿日時（推奨: 朝7時 or 夜21時）</label>
+              <label className="block text-xs text-slate-400 mb-1.5">📅 投稿日時（推奨: 朝6時 or 夜21時）</label>
               <input
                 type="datetime-local"
                 value={editScheduledAt}
@@ -363,7 +363,7 @@ export default function TopPage() {
                 className="w-full px-3 py-2.5 rounded-xl text-sm text-white focus:outline-none transition-all"
                 style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
               />
-              <p className="text-[11px] text-slate-500 mt-1">ニッチアカウントの最適投稿時間: 朝7:00（起床後）・夜21:00（就寝前）</p>
+              <p className="text-[11px] text-slate-500 mt-1">最適投稿時間: 朝6:00・夜21:00（木曜21時は特に効果的）</p>
             </div>
 
             <div className="flex gap-2">

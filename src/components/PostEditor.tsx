@@ -30,9 +30,10 @@ const POST_TYPES = [
 
 const FORMAT_TYPES = ['テキスト', '画像付き', 'スレッド', '引用RT', 'リプライ', '長文投稿']
 
-const CHAR_LIMIT: Record<string, number> = {
-  '長文投稿': 25000,
-}
+// X Premium: all plans allow up to 25,000 chars. 140 is only the timeline preview cutoff.
+const HARD_LIMIT = 25000
+const RECOMMENDED_MIN = 300
+const RECOMMENDED_MAX = 500
 const STATUSES = ['下書き', '承認待ち', '予約済み']
 
 const POST_TYPE_COLORS: Record<string, string> = {
@@ -162,9 +163,10 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
     }
   }
 
-  const charLimit = CHAR_LIMIT[formatType] || 280
   const charCount = content.length
-  const isOverLimit = charCount > charLimit
+  const isOverLimit = charCount > HARD_LIMIT
+  const inRecommended = charCount >= RECOMMENDED_MIN && charCount <= RECOMMENDED_MAX
+  const isLongForm = formatType === '長文投稿'
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -256,21 +258,69 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
         <div>
           <div className="flex items-center justify-between mb-2">
             <label className="text-sm font-medium text-slate-300">投稿内容</label>
-            <span className={`text-xs font-mono ${isOverLimit ? 'text-red-400' : charCount > charLimit * 0.85 ? 'text-yellow-400' : 'text-slate-400'}`}>
-              {charCount}/{charLimit.toLocaleString()}
+            <span className={`text-xs font-mono ${
+              isOverLimit ? 'text-red-400'
+              : inRecommended ? 'text-green-400'
+              : charCount >= 140 ? 'text-orange-400'
+              : 'text-slate-400'
+            }`}>
+              {charCount.toLocaleString()} / 25,000
             </span>
           </div>
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            rows={8}
+            rows={isLongForm ? 20 : 10}
             className="w-full px-4 py-3 rounded-xl text-slate-200 text-sm resize-none focus:outline-none focus:border-orange-500/50 transition-colors leading-relaxed"
             style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
-            placeholder="投稿内容を入力してください..."
+            placeholder={isLongForm ? '長文投稿（最大25,000文字）を入力してください...' : '投稿内容を入力してください...'}
           />
-          {isOverLimit && (
-            <p className="text-xs text-red-400 mt-1">{charLimit.toLocaleString()}文字を超えています（{charCount - charLimit}文字オーバー）</p>
-          )}
+
+          {/* Char range indicators */}
+          <div className="mt-2 space-y-1">
+            {charCount > 0 && charCount < 140 && (
+              <p className="text-xs text-slate-500">
+                📱 あと<span className="text-white font-medium">{140 - charCount}</span>文字でタイムライン表示の限界（140文字）
+              </p>
+            )}
+            {charCount >= 140 && charCount < RECOMMENDED_MIN && (
+              <p className="text-xs text-orange-400">
+                📱 140文字超え — タイムラインで「さらに表示」が出ます。<span className="text-slate-400">あと{RECOMMENDED_MIN - charCount}文字で推奨範囲</span>
+              </p>
+            )}
+            {inRecommended && (
+              <p className="text-xs text-green-400">✅ 推奨範囲（300〜500文字）— 詳細クリックを促す最適な長さです</p>
+            )}
+            {charCount > RECOMMENDED_MAX && !isOverLimit && (
+              <p className="text-xs text-blue-400">📝 長文モード — 人柄・価値観が伝わり濃いファンを育てます（最大25,000文字）</p>
+            )}
+            {isOverLimit && (
+              <p className="text-xs text-red-400">25,000文字を超えています（{(charCount - HARD_LIMIT).toLocaleString()}文字オーバー）</p>
+            )}
+          </div>
+        </div>
+
+        {/* Engagement guidance */}
+        <div className="rounded-xl p-4" style={{ background: 'rgba(249,115,22,0.07)', border: '1px solid rgba(249,115,22,0.2)' }}>
+          <h4 className="text-xs font-bold text-orange-300 mb-2.5">📊 エンゲージメント最大化のヒント</h4>
+          <div className="space-y-2 text-xs text-slate-400">
+            <div className="flex gap-2">
+              <span className="text-orange-400 shrink-0 mt-0.5">▶</span>
+              <span><span className="text-white">冒頭140文字</span>で興味を引く — タイムラインに表示されるのはここまで。続きを読ませる一文を置く</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-orange-400 shrink-0 mt-0.5">▶</span>
+              <span><span className="text-green-300">300〜500文字</span>が推奨範囲 — 「詳細クリック」を促しアルゴリズム評価が上がる（滞在時間↑）</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-orange-400 shrink-0 mt-0.5">▶</span>
+              <span>長文（500文字超）は<span className="text-white">人柄・考え方まで伝わり濃いファンを育てる</span>。X Premiumで最大25,000文字OK</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-orange-400 shrink-0 mt-0.5">▶</span>
+              <span>最適投稿時間: <span className="text-white">朝6時・夜21時</span>（木曜夜21時は全体最高潮 — エンゲージメント+150%以上）</span>
+            </div>
+          </div>
         </div>
 
         {/* Hashtags */}

@@ -13,19 +13,23 @@ export async function POST(req: NextRequest) {
   const hasQuestion = /[？?]/.test(content)
   const hasCTA = /ブックマーク|保存|いいね|RTして|フォロー|シェア/.test(content)
 
-  // Base heuristic score
+  // Base heuristic score — optimized for X Premium engagement
   let score = 50
   if (isLongForm) {
-    // Long-form scoring (X Premium, up to 25,000 chars)
-    if (charCount >= 500 && charCount <= 5000) score += 10
+    // Long-form scoring (X Premium, 500〜5,000 chars recommended)
+    if (charCount >= 500 && charCount <= 5000) score += 12
+    else if (charCount >= 300) score += 5
     else if (charCount < 200) score -= 10
     if (lineBreaks >= 8) score += 8
     else if (lineBreaks >= 4) score += 4
   } else {
-    // Standard tweet scoring (X Premium: 280 chars)
-    if (charCount >= 60 && charCount <= 200) score += 10
-    else if (charCount < 30) score -= 15
-    else if (charCount > 280) score -= 10
+    // Standard scoring: 300〜500 chars is the engagement sweet spot
+    // (SocialDog 1億600万ツイート分析: 文字数多いほどエンゲージメント↑)
+    if (charCount >= 300 && charCount <= 500) score += 15  // optimal
+    else if (charCount >= 140 && charCount < 300) score += 8  // good (passes timeline cutoff)
+    else if (charCount >= 500 && charCount <= 2000) score += 10  // long, good for fans
+    else if (charCount < 60) score -= 15  // too short
+    else if (charCount > 25000) score -= 20  // over X Premium limit
   }
   if (hasHashtag) score += 5
   if (hasEmoji) score += 5

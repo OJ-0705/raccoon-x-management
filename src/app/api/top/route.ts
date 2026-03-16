@@ -87,7 +87,12 @@ async function generateWithAI(postType: string): Promise<string> {
 投稿タイプ: ${postType}
 テーマ: 低脂質食品・コンビニおつまみ・脂質制限・洋なし型体質
 対象: 脂質で太りやすい洋なし型体質の人
-制約: 日本語、絵文字使用、ハッシュタグ2個含む、改行を効果的に使用、具体的な数値を入れる、280文字以内（X Premium標準）
+制約:
+- 日本語・絵文字使用・ハッシュタグ2個
+- 推奨文字数: 300〜500文字（X Premiumエンゲージメント最適範囲）
+- 冒頭140文字以内で「続きを読みたい」と思わせる一文を置く
+- 具体的な数値を入れる
+- 改行を効果的に使う
 投稿文のみ出力（説明不要）:`,
       }],
     })
@@ -115,7 +120,7 @@ export async function GET() {
  *  Find the latest scheduled pending post and propose the next available slot.
  */
 async function nextScheduledAt(offset: number): Promise<Date> {
-  const DAILY_SLOTS = [7, 21] // morning and evening
+  const DAILY_SLOTS = [6, 21] // morning 6am and evening 9pm (peak engagement times)
   // Get latest scheduled pending post
   const latest = await prisma.post.findFirst({
     where: { status: '承認待ち', scheduledAt: { not: null } },
