@@ -32,6 +32,14 @@ const glass = {
   boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
 }
 
+/** Remove trailing 。 from the first line only (display-only helper) */
+function stripFirstLinePeriod(text: string): string {
+  const nl = text.indexOf('\n')
+  const first = nl >= 0 ? text.slice(0, nl) : text
+  const rest = nl >= 0 ? text.slice(nl) : ''
+  return first.replace(/。$/, '') + rest
+}
+
 function PlatformBadges({ platform }: { platform?: string }) {
   const showX = !platform || platform === 'x' || platform === 'both'
   const showT = !platform || platform === 'threads' || platform === 'both'
@@ -215,17 +223,22 @@ export default function TopPage() {
   const handleSave = async () => {
     if (!editPost) return
     setSaving(true)
+    const scheduledAtISO = editScheduledAt ? new Date(editScheduledAt).toISOString() : null
     try {
-      await fetch(`/api/posts/${editPost.id}`, {
+      const res = await fetch(`/api/posts/${editPost.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: editContent,
-          scheduledAt: editScheduledAt ? new Date(editScheduledAt).toISOString() : null,
-        }),
+        body: JSON.stringify({ content: editContent, scheduledAt: scheduledAtISO }),
       })
-      await loadPosts()
+      if (res.ok) {
+        // Optimistic update — immediately reflect in card + approve modal
+        setPosts(prev => prev.map(p =>
+          p.id === editPost.id ? { ...p, content: editContent, scheduledAt: scheduledAtISO } : p
+        ))
+      }
       setEditPost(null)
+      // Async server sync (no need to await — state already updated)
+      loadPosts()
     } finally {
       setSaving(false)
     }
@@ -294,11 +307,8 @@ export default function TopPage() {
                 {/* Content */}
                 <div className="px-5 py-5 flex-1">
                   <p className="text-base text-slate-200 whitespace-pre-wrap leading-relaxed">
-                    {post.content}
+                    {stripFirstLinePeriod(post.content)}
                   </p>
-                  {(() => { const first = post.content.split('\n')[0] || ''; return first.endsWith('。') })() && (
-                    <p className="text-xs text-yellow-500 mt-2">💡 1文目の「。」を削除するとフックが効果的になります</p>
-                  )}
                 </div>
 
                 {/* Recommended time */}
@@ -406,8 +416,8 @@ export default function TopPage() {
             />
             <div className="flex items-center justify-between mt-1 mb-4">
               <span className="text-xs text-slate-500">{editContent.length}文字</span>
-              <span className={`text-xs ${editContent.length > 280 ? 'text-red-400' : 'text-slate-500'}`}>
-                推奨: 280文字以内
+              <span className={`text-xs ${editContent.length < 300 ? 'text-yellow-500' : editContent.length <= 500 ? 'text-green-400' : editContent.length > 25000 ? 'text-red-400' : 'text-slate-500'}`}>
+                {editContent.length < 300 ? `推奨300〜500文字（あと${300 - editContent.length}文字）` : editContent.length <= 500 ? '✅ 推奨範囲内' : `${editContent.length}文字`}
               </span>
             </div>
 
