@@ -75,7 +75,7 @@ function OverflowText({ text }: { text: string }) {
     <div>
       <p
         ref={ref}
-        className={`text-sm text-slate-200 whitespace-pre-wrap leading-relaxed ${!expanded ? 'line-clamp-6' : ''}`}
+        className={`text-sm text-slate-200 whitespace-pre-wrap leading-relaxed ${!expanded ? 'line-clamp-9' : ''}`}
       >
         {text}
       </p>
@@ -272,12 +272,11 @@ export default function TopPage() {
         body: JSON.stringify({ content: editContent, scheduledAt: scheduledAtISO }),
       })
       if (res.ok) {
-        // Optimistic update — immediately reflect in card + approve modal
-        setPosts(prev => prev.map(p =>
-          p.id === editPost.id ? { ...p, content: editContent, scheduledAt: scheduledAtISO } : p
-        ))
+        // Close modal, then refetch from server (DB is confirmed updated after PATCH)
+        // This ensures the 承認 modal sees the correct, server-confirmed date
+        setEditPost(null)
+        await loadPosts()
       }
-      setEditPost(null)
     } finally {
       setSaving(false)
     }
@@ -329,7 +328,7 @@ export default function TopPage() {
             const isRegen = regenLoading === post.id
             const displayText = stripFirstLinePeriod(post.content)
             return (
-              <div key={post.id} className="rounded-2xl overflow-hidden flex flex-col" style={glass}>
+              <div key={post.id} className="rounded-2xl overflow-hidden flex flex-col min-h-[450px]" style={glass}>
                 {/* Card header */}
                 <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
                   <span className="text-sm text-slate-500 font-mono">#{i + 1}</span>
@@ -344,8 +343,8 @@ export default function TopPage() {
                   </div>
                 </div>
 
-                {/* Content — expandable */}
-                <div className="px-5 py-4 flex-1">
+                {/* Content — expandable, grows to fill card height */}
+                <div className="px-5 py-5 flex-1">
                   <OverflowText text={displayText} />
                 </div>
 

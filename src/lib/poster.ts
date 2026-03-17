@@ -1,6 +1,10 @@
 /**
  * Shared posting logic for X (Twitter) and Threads APIs.
  * Used by /api/cron/publish and /api/posts/[id]/publish
+ *
+ * Simulate mode is DISABLED by default.
+ * To enable simulation (e.g. for local dev without real credentials),
+ * set SIMULATE_MODE=true in your environment variables.
  */
 
 export interface PostResult {
@@ -11,14 +15,36 @@ export interface PostResult {
 
 // ── X (Twitter) OAuth 1.0a ──────────────────────────────────────────────────
 export async function postToX(content: string): Promise<PostResult> {
-  const consumerKey = process.env.X_CONSUMER_KEY || ''
-  const consumerSecret = process.env.X_CONSUMER_SECRET || ''
-  const accessToken = process.env.X_ACCESS_TOKEN || ''
-  const accessTokenSecret = process.env.X_ACCESS_TOKEN_SECRET || ''
+  // ── Debug: log env var presence (never log actual values for security) ──
+  console.log('=== X API Environment Variables Check ===')
+  console.log('X_CONSUMER_KEY exists:', !!process.env.X_CONSUMER_KEY, '| length:', process.env.X_CONSUMER_KEY?.trim().length ?? 0)
+  console.log('X_CONSUMER_SECRET exists:', !!process.env.X_CONSUMER_SECRET, '| length:', process.env.X_CONSUMER_SECRET?.trim().length ?? 0)
+  console.log('X_ACCESS_TOKEN exists:', !!process.env.X_ACCESS_TOKEN, '| length:', process.env.X_ACCESS_TOKEN?.trim().length ?? 0)
+  console.log('X_ACCESS_TOKEN_SECRET exists:', !!process.env.X_ACCESS_TOKEN_SECRET, '| length:', process.env.X_ACCESS_TOKEN_SECRET?.trim().length ?? 0)
+  console.log('SIMULATE_MODE:', process.env.SIMULATE_MODE)
+  console.log('NODE_ENV:', process.env.NODE_ENV)
+
+  // Explicit simulate mode — must be opted-in via SIMULATE_MODE=true
+  if (process.env.SIMULATE_MODE === 'true') {
+    console.warn('[poster] SIMULATE_MODE=true — skipping real X API call')
+    return { simulated: true, id: `sim_x_${Date.now()}` }
+  }
+
+  // Trim credentials to avoid whitespace issues from Vercel copy-paste
+  const consumerKey = (process.env.X_CONSUMER_KEY || '').trim()
+  const consumerSecret = (process.env.X_CONSUMER_SECRET || '').trim()
+  const accessToken = (process.env.X_ACCESS_TOKEN || '').trim()
+  const accessTokenSecret = (process.env.X_ACCESS_TOKEN_SECRET || '').trim()
 
   if (!consumerKey || !consumerSecret || !accessToken || !accessTokenSecret) {
-    console.warn('[poster] X API credentials not set — simulating')
-    return { simulated: true, id: `sim_x_${Date.now()}` }
+    const missing = [
+      !consumerKey && 'X_CONSUMER_KEY',
+      !consumerSecret && 'X_CONSUMER_SECRET',
+      !accessToken && 'X_ACCESS_TOKEN',
+      !accessTokenSecret && 'X_ACCESS_TOKEN_SECRET',
+    ].filter(Boolean).join(', ')
+    console.error(`[poster] X API credentials missing: ${missing}`)
+    return { error: `X API credentials not set: ${missing}` }
   }
 
   const url = 'https://api.twitter.com/2/tweets'
@@ -55,6 +81,7 @@ export async function postToX(content: string): Promise<PostResult> {
     .map(k => `${encodeURIComponent(k)}="${encodeURIComponent(oauthParams[k])}"`)
     .join(', ')
 
+  console.log('[poster] Calling X API v2 /tweets ...')
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -69,23 +96,38 @@ export async function postToX(content: string): Promise<PostResult> {
       return { error: `HTTP ${res.status}: ${msg}` }
     }
 
-    console.log('[poster] X posted:', data.data?.id)
+    console.log('[poster] X posted successfully, id:', data.data?.id)
     return { id: data.data?.id }
   } catch (err) {
+    console.error('[poster] X API fetch exception:', err)
     return { error: String(err) }
   }
 }
 
 // ── Threads ─────────────────────────────────────────────────────────────────
 export async function postToThreads(content: string): Promise<PostResult> {
-  const accessToken = process.env.THREADS_ACCESS_TOKEN
-  const userId = process.env.THREADS_USER_ID
+  console.log('=== Threads API Environment Variables Check ===')
+  console.log('THREADS_ACCESS_TOKEN exists:', !!process.env.THREADS_ACCESS_TOKEN, '| length:', process.env.THREADS_ACCESS_TOKEN?.trim().length ?? 0)
+  console.log('THREADS_USER_ID exists:', !!process.env.THREADS_USER_ID, '| length:', process.env.THREADS_USER_ID?.trim().length ?? 0)
 
-  if (!accessToken || !userId) {
-    console.warn('[poster] Threads credentials not set — simulating')
+  if (process.env.SIMULATE_MODE === 'true') {
+    console.warn('[poster] SIMULATE_MODE=true — skipping real Threads API call')
     return { simulated: true, id: `sim_threads_${Date.now()}` }
   }
 
+  const accessToken = (process.env.THREADS_ACCESS_TOKEN || '').trim()
+  const userId = (process.env.THREADS_USER_ID || '').trim()
+
+  if (!accessToken || !userId) {
+    const missing = [
+      !accessToken && 'THREADS_ACCESS_TOKEN',
+      !userId && 'THREADS_USER_ID',
+    ].filter(Boolean).join(', ')
+    console.error(`[poster] Threads credentials missing: ${missing}`)
+    return { error: `Threads credentials not set: ${missing}` }
+  }
+
+  console.log('[poster] Calling Threads API, userId:', userId)
   try {
     // Step 1: Create container
     const containerRes = await fetch(`https://graph.threads.net/v1.0/${userId}/threads`, {
@@ -95,8 +137,11 @@ export async function postToThreads(content: string): Promise<PostResult> {
     })
     const container = await containerRes.json() as { id?: string; error?: { message: string } }
     if (!container.id) {
-      return { error: container.error?.message || 'Threads container creation failed' }
+      const msg = container.error?.message || 'Threads container creation failed'
+      console.error('[poster] Threads container error:', msg)
+      return { error: msg }
     }
+    console.log('[poster] Threads container created:', container.id)
 
     // Step 2: Wait then publish
     await new Promise(r => setTimeout(r, 1000))
@@ -107,12 +152,15 @@ export async function postToThreads(content: string): Promise<PostResult> {
     })
     const published = await publishRes.json() as { id?: string; error?: { message: string } }
     if (!published.id) {
-      return { error: published.error?.message || 'Threads publish failed' }
+      const msg = published.error?.message || 'Threads publish failed'
+      console.error('[poster] Threads publish error:', msg)
+      return { error: msg }
     }
 
-    console.log('[poster] Threads posted:', published.id)
+    console.log('[poster] Threads posted successfully, id:', published.id)
     return { id: published.id }
   } catch (err) {
+    console.error('[poster] Threads API fetch exception:', err)
     return { error: String(err) }
   }
 }
