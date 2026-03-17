@@ -101,9 +101,11 @@ export default function TopPage() {
   const [schedulePost, setSchedulePost] = useState<Post | null>(null)
   const [approving, setApproving] = useState<string | null>(null)
   const [regenLoading, setRegenLoading] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   // Edit modal state
   const [editPost, setEditPost] = useState<Post | null>(null)
   const [editContent, setEditContent] = useState('')
+  const [originalContent, setOriginalContent] = useState('')
   const [editScheduledAt, setEditScheduledAt] = useState('')
   const [saving, setSaving] = useState(false)
   const [rewriteInstruction, setRewriteInstruction] = useState('')
@@ -168,6 +170,7 @@ export default function TopPage() {
   const openEdit = (post: Post) => {
     setEditPost(post)
     setEditContent(post.content)
+    setOriginalContent(post.content)
     // Pre-fill with proposed next schedule
     if (post.scheduledAt) {
       const d = new Date(post.scheduledAt)
@@ -177,6 +180,12 @@ export default function TopPage() {
       setEditScheduledAt(proposeNextSchedule(posts))
     }
   }
+
+  const toggleExpand = (id: string) => setExpanded(prev => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
 
   const handleRegenerate = async (post: Post) => {
     setRegenLoading(post.id)
@@ -189,20 +198,27 @@ export default function TopPage() {
           instruction: `以下のルールでリライトしてください：
 1. 300〜500文字に調整する
 2. 冒頭140文字で興味を引くフックを入れる（1文目の文末に「。」を入れない）
-3. 脂質データは具体的に数値で示す
-4. 絵文字は3〜5個程度
-5. ハッシュタグは最後に2個
+3. 脂質データは具体的に数値で示す（例：脂質2.1g、カロリー89kcal）
+4. 絵文字は3〜5個程度（冒頭と要所に配置）
+5. ハッシュタグは最後に2〜3個（#低脂質 #おつまみ #脂質制限 など）
 6. らくーん🍊のトーン：親しみやすく、ユーモアを交えつつ、データも示す
-7. アカウントテーマ：遺伝子検査で洋梨型とわかった脂質と戦う1人会社社長が、既製品だけで低脂質おつまみをレビュー`,
+7. アカウントテーマ：遺伝子検査で洋梨型とわかった脂質と戦う1人会社社長が、既製品だけで低脂質おつまみをレビュー
+8. 読者への問いかけや共感を誘う表現を入れる`,
         }),
       })
       const data = await res.json()
       if (data.result) {
-        await fetch(`/api/posts/${post.id}`, {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: data.result }),
-        })
-        await loadPosts()
+        // Open edit modal with regenerated content for user review
+        setOriginalContent(post.content)
+        setEditContent(data.result)
+        setEditPost(post)
+        if (post.scheduledAt) {
+          const d = new Date(post.scheduledAt)
+          const pad = (n: number) => n.toString().padStart(2, '0')
+          setEditScheduledAt(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`)
+        } else {
+          setEditScheduledAt(proposeNextSchedule(posts))
+        }
       }
     } finally { setRegenLoading(null) }
   }
@@ -284,17 +300,20 @@ export default function TopPage() {
           <div className="text-slate-400 text-sm">読み込み中...</div>
         </div>
       ) : posts.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {posts.map((post, i) => {
             const typeColor = POST_TYPE_COLORS[post.postType] || '#6B7280'
             const isRegen = regenLoading === post.id
+            const displayText = stripFirstLinePeriod(post.content)
+            const isLong = displayText.length > 150 || displayText.split('\n').length > 4
+            const isExpanded = expanded.has(post.id)
             return (
               <div key={post.id} className="rounded-2xl overflow-hidden flex flex-col" style={glass}>
                 {/* Card header */}
-                <div className="flex items-center gap-3 px-5 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
                   <span className="text-sm text-slate-500 font-mono">#{i + 1}</span>
                   <span
-                    className="text-sm px-3 py-1 rounded-full font-medium text-white truncate"
+                    className="text-xs px-2 py-0.5 rounded-full font-medium text-white truncate"
                     style={{ backgroundColor: typeColor }}
                   >
                     {post.postType}
@@ -304,30 +323,38 @@ export default function TopPage() {
                   </div>
                 </div>
 
-                {/* Content */}
-                <div className="px-5 py-5 flex-1">
-                  <p className="text-base text-slate-200 whitespace-pre-wrap leading-relaxed">
-                    {stripFirstLinePeriod(post.content)}
+                {/* Content — expandable */}
+                <div className="px-5 py-4 flex-1">
+                  <p className={`text-sm text-slate-200 whitespace-pre-wrap leading-relaxed ${!isExpanded && isLong ? 'line-clamp-4' : ''}`}>
+                    {displayText}
                   </p>
+                  {isLong && (
+                    <button
+                      onClick={() => toggleExpand(post.id)}
+                      className="text-xs text-orange-400 hover:text-orange-300 mt-1.5 transition-colors"
+                    >
+                      {isExpanded ? '▲ 折りたたむ' : '▼ 続きを見る'}
+                    </button>
+                  )}
                 </div>
 
                 {/* Recommended time */}
-                <div className="px-5 pb-3 text-sm text-blue-400">
+                <div className="px-4 pb-2 text-xs text-blue-400">
                   ⏰ {formatDate(post.scheduledAt)}
                 </div>
 
                 {/* Actions */}
-                <div className="grid grid-cols-2 gap-2 px-5 pb-5">
+                <div className="grid grid-cols-2 gap-1.5 px-4 pb-4">
                   <button
                     onClick={() => handleApprove(post)}
                     disabled={approving === post.id}
-                    className="col-span-2 py-3 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-all"
+                    className="col-span-2 py-2.5 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-all"
                   >
-                    ✅ 承認する（日時変更可）
+                    ✅ 承認する
                   </button>
                   <button
                     onClick={() => openEdit(post)}
-                    className="py-2.5 text-slate-300 rounded-xl text-sm transition-all"
+                    className="py-2 text-slate-300 rounded-xl text-xs transition-all"
                     style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
                   >
                     ✏️ 編集
@@ -335,7 +362,7 @@ export default function TopPage() {
                   <button
                     onClick={() => handleApproveDirectly(post.id)}
                     disabled={approving === post.id}
-                    className="py-2.5 disabled:opacity-50 text-slate-300 rounded-xl text-sm transition-all"
+                    className="py-2 disabled:opacity-50 text-slate-300 rounded-xl text-xs transition-all"
                     style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
                     title="推奨時刻のまま即承認"
                   >
@@ -344,14 +371,14 @@ export default function TopPage() {
                   <button
                     onClick={() => handleRegenerate(post)}
                     disabled={isRegen}
-                    className="col-span-2 py-2.5 disabled:opacity-50 rounded-xl text-sm font-medium transition-all"
+                    className="col-span-2 py-2 disabled:opacity-50 rounded-xl text-xs font-medium transition-all"
                     style={{ background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.25)', color: '#c4b5fd' }}
                   >
-                    {isRegen ? '再生成中...' : '🔄 文章を再生成（300〜500文字）'}
+                    {isRegen ? '再生成中...' : '🔄 再生成（300〜500文字）'}
                   </button>
                   <button
                     onClick={() => handleReject(post.id)}
-                    className="col-span-2 py-2 bg-red-900/40 hover:bg-red-900/70 text-red-400 rounded-xl text-sm transition-all"
+                    className="col-span-2 py-1.5 bg-red-900/40 hover:bg-red-900/70 text-red-400 rounded-xl text-xs transition-all"
                   >
                     削除
                   </button>
@@ -406,7 +433,18 @@ export default function TopPage() {
                 {editPost.postType}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mb-3">ハッシュタグは最大2つまで。内容を自由に編集してください。</p>
+            <div className="flex items-center gap-2 mb-3">
+              <p className="text-xs text-slate-400 flex-1">ハッシュタグは最大2〜3個。内容を自由に編集してください。</p>
+              {originalContent && originalContent !== editContent && (
+                <button
+                  onClick={() => setEditContent(originalContent)}
+                  className="text-xs px-2 py-1 rounded-lg transition-all whitespace-nowrap"
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}
+                >
+                  ↩ 元に戻す
+                </button>
+              )}
+            </div>
             <textarea
               value={editContent}
               onChange={e => setEditContent(e.target.value)}
