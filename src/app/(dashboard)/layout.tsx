@@ -27,15 +27,6 @@ export default async function DashboardLayout({
           <div className="p-4 md:p-6">
             {children}
           </div>
-          {/* Mobile FAB — new post */}
-          <a
-            href="/posts/new"
-            className="fixed bottom-5 right-5 flex md:hidden items-center justify-center w-14 h-14 rounded-full text-white text-2xl shadow-2xl z-50 transition-transform active:scale-95"
-            style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 4px 20px rgba(249,115,22,0.5)' }}
-            aria-label="新規投稿"
-          >
-            ✏️
-          </a>
         </main>
       </div>
     </SessionProvider>
