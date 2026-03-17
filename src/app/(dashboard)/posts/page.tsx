@@ -32,6 +32,7 @@ function PostsContent() {
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '予約済み')
   const [typeFilter, setTypeFilter] = useState('すべて')
   const [page, setPage] = useState(1)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const fetchPosts = useCallback(async () => {
     setLoading(true)
@@ -58,12 +59,16 @@ function PostsContent() {
   }, [fetchPosts])
 
   const handleDelete = async (id: string) => {
+    if (deletingId) return
     if (!confirm('この投稿を削除しますか？')) return
+    setDeletingId(id)
     try {
       await fetch(`/api/posts/${id}`, { method: 'DELETE' })
       fetchPosts()
     } catch (error) {
       console.error(error)
+    } finally {
+      setDeletingId(null)
     }
   }
 

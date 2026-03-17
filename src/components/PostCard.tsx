@@ -39,6 +39,7 @@ interface PostCardProps {
 
 export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
   const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   // Inline edit modal
   const [showEdit, setShowEdit] = useState(false)
   const [editContent, setEditContent] = useState(post.content)
@@ -198,6 +199,24 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
     } finally { setAbLoading(false) }
   }
 
+  const handlePublishNow = async () => {
+    if (!confirm('今すぐ投稿しますか？')) return
+    setPublishing(true)
+    try {
+      const res = await fetch(`/api/posts/${post.id}/publish`, { method: 'POST' })
+      const data = await res.json()
+      if (!data.success && !data.partial) {
+        alert(data.errors?.join('\n') || '投稿に失敗しました')
+      } else {
+        onRefresh?.()
+      }
+    } catch {
+      alert('投稿エラーが発生しました')
+    } finally {
+      setPublishing(false)
+    }
+  }
+
   const scoreColor = !score ? '#6b7280'
     : score.score >= 80 ? '#10b981'
     : score.score >= 60 ? '#f97316'
@@ -231,7 +250,7 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
         {post.status === '投稿済み' && (
           <div className="mb-3 space-y-1.5">
             <div className="flex items-center gap-3 text-sm text-slate-400 flex-wrap">
-              <span className="text-blue-400 font-medium text-xs">𝕏</span>
+              <span className="text-blue-400 font-medium text-xs" title="X (Twitter)">𝕏</span>
               <span>👀 {post.impressions.toLocaleString()}</span>
               <span>❤️ {post.likes.toLocaleString()}</span>
               <span>🔁 {post.retweets.toLocaleString()}</span>
@@ -240,7 +259,7 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
             </div>
             {(post.threadsImp || 0) > 0 && (
               <div className="flex items-center gap-3 text-sm text-slate-400 flex-wrap">
-                <span className="text-purple-400 font-medium text-xs">🧵</span>
+                <span className="text-purple-400 font-medium text-xs" title="Threads">🧵</span>
                 <span>👀 {(post.threadsImp || 0).toLocaleString()}</span>
                 <span>❤️ {(post.threadsLikes || 0).toLocaleString()}</span>
                 <span>💬 {(post.threadsReplies || 0).toLocaleString()}</span>
@@ -298,6 +317,16 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
               スケジュール設定
             </button>
           )}
+          {post.status === '予約済み' && (
+            <button
+              onClick={handlePublishNow}
+              disabled={publishing}
+              className="text-sm px-3 py-1.5 rounded-xl transition-all disabled:opacity-50"
+              style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#86efac' }}
+            >
+              {publishing ? '投稿中...' : '🚀 今すぐ投稿'}
+            </button>
+          )}
           <button onClick={handleImprove} className="text-sm px-3 py-1.5 rounded-xl text-purple-300 hover:text-purple-200 transition-all" style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)' }}>
             ✨ AI改善
           </button>
@@ -313,7 +342,7 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
           )}
           {onDelete && (
             <button
-              onClick={() => { if (confirm('この投稿を削除しますか？')) onDelete(post.id) }}
+              onClick={() => onDelete(post.id)}
               className="text-sm px-3 py-1.5 rounded-xl ml-auto transition-all"
               style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5' }}
             >

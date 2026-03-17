@@ -36,6 +36,7 @@ export default function ScheduleModal({ postId, defaultScheduledAt, onClose, onS
   const [selectedHour, setSelectedHour] = useState<number | null>(null)
   const [bookedKeys, setBookedKeys] = useState<Set<string>>(new Set())
   const [nextSlot, setNextSlot] = useState<{ date: Date; hour: number } | null>(null)
+  const [customTime, setCustomTime] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -117,6 +118,8 @@ export default function ScheduleModal({ postId, defaultScheduledAt, onClose, onS
   const selectedDt = selectedDate && selectedHour !== null
     ? new Date(new Date(selectedDate).setHours(selectedHour, 0, 0, 0))
     : null
+
+  const isPastDt = selectedDt !== null && selectedDt < new Date()
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -212,7 +215,7 @@ export default function ScheduleModal({ postId, defaultScheduledAt, onClose, onS
                 <p className="text-xs text-slate-400 mb-2">
                   {selectedDate.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })} の投稿時間
                 </p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2 mb-2">
                   {TIME_SLOTS.map(slot => {
                     const booked = isBooked(selectedDate, slot.hour)
                     const chosen = selectedHour === slot.hour
@@ -237,7 +240,29 @@ export default function ScheduleModal({ postId, defaultScheduledAt, onClose, onS
                     )
                   })}
                 </div>
+                {/* Custom time */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-slate-500 whitespace-nowrap">カスタム時間:</span>
+                  <input
+                    type="time"
+                    value={customTime}
+                    onChange={e => {
+                      setCustomTime(e.target.value)
+                      if (e.target.value) {
+                        const h = parseInt(e.target.value.split(':')[0], 10)
+                        setSelectedHour(h)
+                      }
+                    }}
+                    className="flex-1 px-2 py-1.5 rounded-lg text-sm text-white focus:outline-none"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                  />
+                </div>
               </div>
+            )}
+
+            {/* Past date error */}
+            {isPastDt && (
+              <p className="text-xs text-red-400 mb-3">⚠️ 過去の日時は選択できません</p>
             )}
 
             {/* Selected display */}
@@ -256,7 +281,7 @@ export default function ScheduleModal({ postId, defaultScheduledAt, onClose, onS
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={saving || !selectedDate || selectedHour === null}
+                disabled={saving || !selectedDate || selectedHour === null || isPastDt}
                 className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-orange-500/20"
               >
                 {saving ? '処理中...' : (confirmLabel || '予約する')}

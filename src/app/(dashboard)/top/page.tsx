@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import ScheduleModal from '@/components/ScheduleModal'
 
 interface Post {
@@ -59,6 +59,38 @@ function PlatformBadges({ platform }: { platform?: string }) {
   )
 }
 
+/** Detects text overflow and shows expand/collapse toggle */
+function OverflowText({ text }: { text: string }) {
+  const ref = useRef<HTMLParagraphElement>(null)
+  const [isLong, setIsLong] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+
+  useEffect(() => {
+    if (ref.current) {
+      setIsLong(ref.current.scrollHeight > ref.current.clientHeight + 2)
+    }
+  }, [text])
+
+  return (
+    <div>
+      <p
+        ref={ref}
+        className={`text-sm text-slate-200 whitespace-pre-wrap leading-relaxed ${!expanded ? 'line-clamp-6' : ''}`}
+      >
+        {text}
+      </p>
+      {isLong && (
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="text-xs text-orange-400 hover:text-orange-300 mt-1.5 transition-colors"
+        >
+          {expanded ? '▲ 折りたたむ' : '▼ 続きを見る'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 /** Propose the next scheduled datetime based on existing scheduled posts.
  *  Strategy: 2 posts/day — 7:00 and 21:00.
  *  Find the latest scheduled post, then propose the next available slot.
@@ -101,7 +133,6 @@ export default function TopPage() {
   const [schedulePost, setSchedulePost] = useState<Post | null>(null)
   const [approving, setApproving] = useState<string | null>(null)
   const [regenLoading, setRegenLoading] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   // Edit modal state
   const [editPost, setEditPost] = useState<Post | null>(null)
   const [editContent, setEditContent] = useState('')
@@ -181,12 +212,6 @@ export default function TopPage() {
     }
   }
 
-  const toggleExpand = (id: string) => setExpanded(prev => {
-    const next = new Set(prev)
-    if (next.has(id)) next.delete(id); else next.add(id)
-    return next
-  })
-
   const handleRegenerate = async (post: Post) => {
     setRegenLoading(post.id)
     try {
@@ -253,8 +278,6 @@ export default function TopPage() {
         ))
       }
       setEditPost(null)
-      // Async server sync (no need to await — state already updated)
-      loadPosts()
     } finally {
       setSaving(false)
     }
@@ -305,8 +328,6 @@ export default function TopPage() {
             const typeColor = POST_TYPE_COLORS[post.postType] || '#6B7280'
             const isRegen = regenLoading === post.id
             const displayText = stripFirstLinePeriod(post.content)
-            const isLong = displayText.length > 150 || displayText.split('\n').length > 4
-            const isExpanded = expanded.has(post.id)
             return (
               <div key={post.id} className="rounded-2xl overflow-hidden flex flex-col" style={glass}>
                 {/* Card header */}
@@ -325,17 +346,7 @@ export default function TopPage() {
 
                 {/* Content — expandable */}
                 <div className="px-5 py-4 flex-1">
-                  <p className={`text-sm text-slate-200 whitespace-pre-wrap leading-relaxed ${!isExpanded && isLong ? 'line-clamp-4' : ''}`}>
-                    {displayText}
-                  </p>
-                  {isLong && (
-                    <button
-                      onClick={() => toggleExpand(post.id)}
-                      className="text-xs text-orange-400 hover:text-orange-300 mt-1.5 transition-colors"
-                    >
-                      {isExpanded ? '▲ 折りたたむ' : '▼ 続きを見る'}
-                    </button>
-                  )}
+                  <OverflowText text={displayText} />
                 </div>
 
                 {/* Recommended time */}
@@ -467,9 +478,13 @@ export default function TopPage() {
                 value={editScheduledAt}
                 onChange={e => setEditScheduledAt(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl text-sm text-white focus:outline-none transition-all"
-                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
+                style={{ background: 'rgba(255,255,255,0.07)', border: `1px solid ${editScheduledAt && new Date(editScheduledAt) < new Date() ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.12)'}` }}
               />
-              <p className="text-[11px] text-slate-500 mt-1">最適投稿時間: 🌅 朝7:00 / 🌞 昼12:00 / 🌙 夜21:00（木曜21時は特に効果的）</p>
+              {editScheduledAt && new Date(editScheduledAt) < new Date() ? (
+                <p className="text-xs text-red-400 mt-1">⚠️ 過去の日時は選択できません</p>
+              ) : (
+                <p className="text-[11px] text-slate-500 mt-1">最適投稿時間: 🌅 朝7:00 / 🌞 昼12:00 / 🌙 夜21:00（木曜21時は特に効果的）</p>
+              )}
             </div>
 
             {/* AI Rewrite */}
@@ -506,7 +521,7 @@ export default function TopPage() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || (!!editScheduledAt && new Date(editScheduledAt) < new Date())}
                 className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-all"
               >
                 {saving ? '保存中...' : '保存する'}
