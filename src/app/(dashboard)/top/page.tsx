@@ -272,10 +272,11 @@ export default function TopPage() {
         body: JSON.stringify({ content: editContent, scheduledAt: scheduledAtISO }),
       })
       if (res.ok) {
-        // Close modal, then refetch from server (DB is confirmed updated after PATCH)
-        // This ensures the 承認 modal sees the correct, server-confirmed date
-        setEditPost(null)
+        // Refetch from server FIRST (DB is confirmed updated after PATCH),
+        // then close modal — prevents race where user clicks 承認する before
+        // loadPosts() completes and gets stale scheduledAt
         await loadPosts()
+        setEditPost(null)
       }
     } finally {
       setSaving(false)

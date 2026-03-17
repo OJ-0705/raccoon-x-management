@@ -127,13 +127,19 @@ export async function postToThreads(content: string): Promise<PostResult> {
     return { error: `Threads credentials not set: ${missing}` }
   }
 
-  console.log('[poster] Calling Threads API, userId:', userId)
+  // Threads text limit is 500 characters — truncate if necessary
+  const THREADS_MAX_CHARS = 500
+  const threadsText = content.length > THREADS_MAX_CHARS
+    ? content.slice(0, THREADS_MAX_CHARS - 3) + '...'
+    : content
+  console.log(`[poster] Calling Threads API, userId: ${userId}, content length: ${threadsText.length}${content.length > THREADS_MAX_CHARS ? ' (truncated from ' + content.length + ')' : ''}`)
+
   try {
     // Step 1: Create container
     const containerRes = await fetch(`https://graph.threads.net/v1.0/${userId}/threads`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ media_type: 'TEXT', text: content, access_token: accessToken }),
+      body: JSON.stringify({ media_type: 'TEXT', text: threadsText, access_token: accessToken }),
     })
     const container = await containerRes.json() as { id?: string; error?: { message: string } }
     if (!container.id) {
@@ -143,8 +149,8 @@ export async function postToThreads(content: string): Promise<PostResult> {
     }
     console.log('[poster] Threads container created:', container.id)
 
-    // Step 2: Wait then publish
-    await new Promise(r => setTimeout(r, 1000))
+    // Step 2: Wait for media processing (Threads requires a delay; 2s is safer than 1s)
+    await new Promise(r => setTimeout(r, 2000))
     const publishRes = await fetch(`https://graph.threads.net/v1.0/${userId}/threads_publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
