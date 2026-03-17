@@ -2,57 +2,79 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import Anthropic from '@anthropic-ai/sdk'
 
-const OPTIMAL_HOURS: Record<string, number> = {
-  'コンビニまとめ型': 21,
-  '数値比較型': 12,
-  '地雷暴露型': 20,
-  'プロセス共有型': 7,
-  'あるある共感型': 22,
-  'チェックリスト保存型': 21,
-  'Instagram連携型': 18,
-  'その他': 12,
-}
-
 const POST_TYPES_ROTATION = [
+  'パーソナル体験型',
   'コンビニまとめ型',
   'あるある共感型',
+  'パーソナル体験型',
   '数値比較型',
-  'チェックリスト保存型',
-  '地雷暴露型',
+  'お酒・おつまみ型',
+  'パーソナル体験型',
   'コンビニまとめ型',
-  'あるある共感型',
-  '数値比較型',
-  'チェックリスト保存型',
+  '問いかけ・対話型',
   '地雷暴露型',
 ]
 
 const TEMPLATES: Record<string, string[]> = {
+  'パーソナル体験型': [
+    `遺伝子検査で「脂質で太るタイプ」と判明した日、全てが繋がった
+
+それまで無茶な食事制限を繰り返して、仕事中に貧血で倒れたこともある。「なぜ頑張っても痩せないのか」がずっと謎だった。
+
+小学生の頃からサッカー部でよく動いてたのに太ってた。社会人になってデスクワークになったら更に太った。遺伝子検査を受けたのはもう完全に迷走してた時期。UCP1遺伝子のGG型変異。洋なし型。脂質の燃焼効率が低い体質。結果を見た瞬間、頭の中でパズルのピースが全部はまった音がした。
+
+今は脂質だけに集中。糖質は気にしすぎず玄米食べてる。倒れることもなくなった。自分の体質を知ることが、全ての始まりだと思ってる🌿`,
+    `正直に言う。正月に実家帰って3日で3キロ太った
+
+おせちが旨すぎるのが悪い。でもこれ、昔の俺なら「明日から断食だ！」ってなってた。今は違う。脂質だけ意識して玄米食べて、1週間でじわじわ戻す。遺伝子検査受けてから、無茶しなくなった自分がちょっと好き🌿`,
+    `飲み会のあと深夜にラーメン食べてしまった。脂質30g超え確定
+
+明日からまた脂質10g生活に戻す。こういう日もある。完璧じゃなくていい。何度も失敗した俺が言うんだから間違いない、続けることが唯一の正解。昨日やらかした人、今日から一緒に立て直そう💪`,
+  ],
   'コンビニまとめ型': [
-    `セブンで買える。脂質5g以下おつまみ3選。\n\n①サラダチキン（脂質2.5g）\n②あたりめ（脂質1.2g）\n③茎わかめ（脂質0g）\n\nポテチの脂質は30g以上。\nこれなら飲みながらでも罪悪感ゼロ🍺\n\n忘れないようにブックマーク📌\n\n#低脂質おつまみ #洋なし型`,
-    `ファミマで買える。脂質3g以下おつまみ3選。\n\n①蒸し鶏（脂質2.1g）\n②いか天（脂質2.8g）\n③ひじき煮（脂質0.5g）\n\nこれで今夜の晩酌は完璧🍻\n\nブックマーク保存しておいて📌\n\n#低脂質おつまみ #脂質制限`,
-    `ローソンで買える。脂質ほぼゼロのおつまみ3選。\n\n①茎わかめ（脂質0g）\n②ところてん（脂質0g）\n③こんにゃくゼリー（脂質0g）\n\n脂質0gでも満足できる🎯\n\n#低脂質 #洋なし型 #ダイエット`,
+    `さっきセブン行ったら目を疑う数値の新商品が出てた
+
+脂質2.1gなのにこの満足感はバグってる。コンビニ価格でこれは普通に優勝。コンビニの裏面を見続けて数年、「この数値は本物だ」と思う商品に出会えるのは月に数回しかない。今日はその日だった。同じ悩みを持つ人にぜひ試してほしい🍊`,
+    `ファミマでとんでもないものを見つけてしまった
+
+脂質0.9gで食べごたえがある。これ脂質制限中の昼ご飯に最高なんだけど。裏面の数値を見た瞬間「これは絶対に買いだ」と確信した。洋なし型体質で裏面しか見てない俺が認定する、今月のMVP商品🍊`,
+    `ローソンが本気出してきた感がある
+
+レジ前の棚に並んでた新商品、脂質1.3g。即カゴに入れて食べてみたら普通においしかった。コンビニの宝探しが習慣になってから、こういう発見が一番テンション上がる瞬間になってる🌿`,
   ],
   'あるある共感型': [
-    `【脂質制限中あるある】\n\n・スーパーで必ず裏面の成分表を見る\n・「ノンフライ」の文字にときめく\n・揚げ物を見ると脂質計算が始まる\n・せんべいが親友になる\n・居酒屋で頼めるメニューが3つしかない\n\n共感した人、いいねください🙋‍♂️\n\n#脂質制限 #洋なし型`,
-    `洋なし型体質あるある\n\n・同じもの食べてるのになぜか太る\n・糖質より脂質を気にする\n・炭水化物より揚げ物が天敵\n・麺類よりとんかつが危険\n\nこの苦しみ、わかる人だけわかる😭\n\n#洋なし型 #脂質制限 #ダイエット`,
-    `ダイエット中に言われて傷ついた言葉\n\n・「そんなに食べてないのになんで？」\n・「体質だから仕方ない」\n・「運動すれば痩せる」\n\n洋なし型は脂質を減らすだけでいい。\n運動より食事改善が100倍大事🔥\n\n#洋なし型 #脂質制限`,
+    `脂質制限始めてから変わったこと
+
+コンビニで商品を手に取る→必ず裏面を見る→脂質を確認→棚に戻す。この動作を1日10回はやってる。先週スーパーで30分かけて裏面チェックし続けた結果、買えたのは鶏むね肉とそばだけだった。「この世は脂質で溢れている」という事実に毎回絶望する。でも慣れてくると宝探しみたいで楽しくなる。同じ変化を感じてる人いる？🙋‍♂️`,
+    `洋なし型体質で生きることの難しさと楽しさ
+
+同じもの食べてるのになぜか太る、という謎がずっとあった。遺伝子検査で分かってから、全てのパズルのピースがはまった感じがした。体質を知ることは「諦め」じゃなくて「戦い方を知ること」。同じ経験してる人いる？`,
   ],
   '数値比較型': [
-    `衝撃の事実。\n\nポテチ1袋の脂質：35g\nサラダチキン1個の脂質：2.5g\n\n→ポテチはサラダチキンの14倍。\n\n洋なし型体質の僕には、\nこの差が人生を変える。\n\n#低脂質おつまみ #脂質制限`,
-    `知ってた？\n\nマヨネーズ大さじ1の脂質：10g\nノンオイルドレッシング：0.1g\n\n→100倍の差がある。\n\nサラダに何をかけるかで体型が変わる。\n\n#脂質制限 #洋なし型 #ダイエット`,
-    `これ見て驚いた。\n\nラーメン1杯の脂質：18g\nうどん1杯の脂質：2g\n\n→9倍の差。\n\n洋なし型は同じ麺類でも\n選ぶだけで変わる。\n\n#脂質制限 #洋なし型`,
+    `マヨネーズ大さじ1杯で脂質9gって知ってた
+
+大さじ1杯て。サラダにかけた瞬間にサラダの意味が消える。ノンオイルドレッシングに切り替えた瞬間、世界が変わった。脂質制限は「食べない」じゃなくて「何を食べるか」の話だと俺は思ってる。みんなは何に気をつけてる？`,
+    `おせんべいとポテチの脂質差、知ってる？
+
+おせんべい1枚：0.5〜2g / ポテチ1袋：約30g。同じ「おやつ」でこの差はエグい。洋なし型の俺がポテチを封印しておせんべいを相棒にした理由がこれ。数値を知るだけで選択が変わる🍘`,
   ],
-  'チェックリスト保存型': [
-    `【保存推奨】脂質5g以下で晩酌を完結する最強セット\n\n□ 柿の種ピーナッツなし（1.3g）\n□ あたりめ（1.2g）\n□ 茎わかめ（0g）\n□ 味付き半熟たまご（4.3g）\n□ えびせんべい（2.1g）\n\n→合計脂質約9g以下\n\n#低脂質おつまみ #脂質制限`,
-    `【保存版】脂質制限中でも食べられるコンビニスイーツ\n\n□ 水ようかん（脂質0.1g）\n□ ゼリー（脂質0g）\n□ 蒸しパン（脂質2g）\n□ 葛きり（脂質0g）\n□ みたらし団子（脂質1.5g）\n\n甘いもの我慢しなくていい🍡\n\n#脂質制限 #洋なし型`,
+  'お酒・おつまみ型': [
+    `昨日の飲み会、周りがフライドポテトとチーズ盛り合わせを頼む中、俺はずっとハイボールとあたりめだった
+
+「それだけ？」って言われたけど、洋なし型の俺にとってはこれが戦い方なんだよ。あたりめの脂質は1.2g。枝豆（脂質6.2g/100g）と焼き鳥の塩も追加して、合計脂質20g以内で普通に楽しめた。ビール好き×脂質制限、同じ戦いしてる人いる？🍻`,
   ],
   '地雷暴露型': [
-    `ヘルシーそうで実は地雷なおつまみ5選。\n\n①グラノーラ（脂質12g）\n②アーモンド（脂質14g）\n③チーズ（脂質8g）\n④ナッツバー（脂質10g）\n⑤アボカド（脂質15g）\n\n「ヘルシー風」に騙されないで👀\n\n#低脂質おつまみ #洋なし型`,
-    `「ダイエット中でも食べられる」と思ったら地雷だった食品3選\n\n①玄米ブラン（脂質9g）\n②フルーツグラノーラ（脂質11g）\n③サラミ（脂質30g）\n\n食べる前に必ず成分表を確認して⚠️\n\n#脂質制限 #洋なし型 #ダイエット`,
+    `「ヘルシーそうだから」と思って買ったグラノーラの裏面見て絶望した
+
+脂質12g。おやつじゃなくて脂質爆弾だった。毎朝ヨーグルトにかけてた過去の俺に教えてやりたい。コンビニの「ヘルシー風」な顔した食品、裏面が一番正直。騙されないで🍊`,
+  ],
+  '問いかけ・対話型': [
+    `ローファット vs ローカーボ、みんなはどっち派？
+
+俺は遺伝子的に脂質で太るタイプ（洋なし型）だからローファット一択。糖質は気にしすぎず玄米普通に食べてる。遺伝子検査受けてない人は一度試してみる価値あると思う。自分がどっちのタイプか知ってからやるのとやらないのじゃ、効率が全然違う。みんなはどうやって食事制限してる？`,
   ],
 }
 
-/** Remove trailing 。 from the first line (to make it a hook) */
 function removeFirstLinePeriod(text: string): string {
   const nl = text.indexOf('\n')
   const first = nl >= 0 ? text.slice(0, nl) : text
@@ -60,49 +82,47 @@ function removeFirstLinePeriod(text: string): string {
   return first.replace(/。$/, '') + rest
 }
 
-/** Strip hashtags beyond the first maxCount, keeping them at end of text */
-function limitHashtags(content: string, maxCount = 2): string {
-  const tagRegex = /#[^\s#\n]+/g
-  const tags = [...content.matchAll(tagRegex)].map(m => m[0])
-  if (tags.length <= maxCount) return content
-  // Remove excess tags (keep the first maxCount unique ones)
-  const keep = new Set(tags.slice(0, maxCount))
-  const excess = tags.slice(maxCount)
-  let result = content
-  for (const tag of excess) {
-    result = result.replace(tag, '')
-  }
-  // Clean up extra whitespace/newlines
-  return result.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trimEnd()
-}
-
 function getTemplate(postType: string, index: number): string {
   const templates = TEMPLATES[postType] || TEMPLATES['コンビニまとめ型']
   return templates[index % templates.length]
 }
 
-async function generateWithAI(postType: string): Promise<string> {
+async function generateWithAI(postType: string, existingExcerpts: string[]): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return ''
   try {
     const client = new Anthropic({ apiKey })
+    const existingBlock = existingExcerpts.length
+      ? `\n【過去の投稿（同じテーマ・同じ書き出し・同じ構成は使わないこと）】\n${existingExcerpts.slice(-20).map((e, i) => `${i + 1}. ${e}`).join('\n')}\n`
+      : ''
+    const isPersonal = postType === 'パーソナル体験型'
+    const personalInstruction = isPersonal ? `
+【重要】これはパーソナル体験型の投稿です。マサキ個人の体験・感情・日常を語る投稿にしてください。
+商品紹介や知識共有ではなく、「人間マサキ」が主役の投稿です。
+例：遺伝子検査で洋なし型と分かった日 / 無茶ダイエットで倒れた経験 / 正月3日で3キロ増 / 飲み会で我慢した話 / 低脂質おせんべいを作りたいビジョン
+` : ''
     const message = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 400,
+      max_tokens: 1200,
       messages: [{
         role: 'user',
         content: `X（Twitter）の投稿文を1つ作成してください。
+
 投稿タイプ: ${postType}
-テーマ: 低脂質食品・コンビニおつまみ・脂質制限・洋なし型体質
-対象: 脂質で太りやすい洋なし型体質の人
+テーマ: 低脂質食品・脂質制限・洋なし型体質・マサキの体験
+${personalInstruction}
+${existingBlock}
 制約:
-- 日本語・絵文字使用・ハッシュタグ2個
-- 推奨文字数: 300〜500文字（X Premiumエンゲージメント最適範囲）
-- 冒頭140文字以内で「続きを読みたい」と思わせる一文を置く
+- 推奨文字数: 500〜1,500文字（X Premiumエンゲージメント最適）
+- ハッシュタグは原則なし（最大1個）
+- 箇条書きリスト（①②③）は禁止
+- 「○○5選」のまとめ形式は禁止
+- 冒頭140文字で「続きを読む」を押したくなるフックを置く
+- 冒頭1文目の文末に「。」を入れない
+- 一人称は「俺」。友人に話すような気さくな口調
 - 具体的な数値を入れる
-- 改行を効果的に使う
-- 【重要】1文目の文末には「。」を入れない（フックとして「続きが気になる」状態を作るため）
-投稿文のみ出力（説明不要）:`,
+- 最後は読者への問いかけか呼びかけで締める
+投稿文のみ出力（説明不要）`,
       }],
     })
     const text = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
@@ -116,7 +136,7 @@ export async function GET() {
   try {
     const posts = await prisma.post.findMany({
       where: { status: '承認待ち' },
-      orderBy: { scheduledAt: 'asc' },
+      orderBy: { createdAt: 'asc' },
     })
     return NextResponse.json({ posts, total: posts.length })
   } catch (error) {
@@ -125,16 +145,10 @@ export async function GET() {
   }
 }
 
-/** 1日2投稿スケジュール: 朝7時・夜21時の交互スロット
- *  Find the latest scheduled pending post and propose the next available slot.
- */
-const DAILY_SLOTS = [7, 12, 21] // 朝7時 / 昼12時 / 夜21時 (3投稿/日)
+const DAILY_SLOTS = [7, 12, 21]
 
-/** Find the next available slot not already booked in DB */
 async function nextScheduledAt(): Promise<Date> {
   const now = new Date()
-
-  // Get all future scheduled posts to avoid collisions
   const booked = await prisma.post.findMany({
     where: { scheduledAt: { gte: now } },
     select: { scheduledAt: true },
@@ -147,7 +161,6 @@ async function nextScheduledAt(): Promise<Date> {
         return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`
       })
   )
-
   for (let day = 0; day < 21; day++) {
     for (const hour of DAILY_SLOTS) {
       const candidate = new Date()
@@ -156,13 +169,11 @@ async function nextScheduledAt(): Promise<Date> {
       if (candidate <= now) continue
       const key = `${candidate.getFullYear()}-${candidate.getMonth()}-${candidate.getDate()}-${hour}`
       if (!bookedKeys.has(key)) {
-        bookedKeys.add(key) // reserve this slot for subsequent calls in the same batch
+        bookedKeys.add(key)
         return candidate
       }
     }
   }
-
-  // Fallback: 3 weeks out at 21:00
   const fallback = new Date()
   fallback.setDate(fallback.getDate() + 21)
   fallback.setHours(21, 0, 0, 0)
@@ -173,21 +184,30 @@ export async function POST() {
   try {
     const existingCount = await prisma.post.count({ where: { status: '承認待ち' } })
     const toGenerate = Math.max(0, 15 - existingCount)
-
     if (toGenerate === 0) {
       return NextResponse.json({ generated: 0, message: '既に15件の承認待ち投稿があります' })
     }
-
+    const [postedPosts, otherPosts] = await Promise.all([
+      prisma.post.findMany({
+        where: { status: '投稿済み' },
+        orderBy: { postedAt: 'desc' },
+        take: 50,
+        select: { content: true },
+      }),
+      prisma.post.findMany({
+        where: { status: { in: ['予約済み', '承認待ち'] } },
+        select: { content: true },
+      }),
+    ])
+    const existingExcerpts = [...postedPosts, ...otherPosts].map(p => p.content.slice(0, 100))
     const generated = []
     for (let i = 0; i < toGenerate; i++) {
       const postType = POST_TYPES_ROTATION[(existingCount + i) % POST_TYPES_ROTATION.length]
-
       const scheduledAt = await nextScheduledAt()
-
-      const aiContent = await generateWithAI(postType)
+      const aiContent = await generateWithAI(postType, existingExcerpts)
       const rawContent = aiContent || getTemplate(postType, existingCount + i)
-      const content = limitHashtags(removeFirstLinePeriod(rawContent), 2)
-
+      const content = removeFirstLinePeriod(rawContent)
+      existingExcerpts.push(content.slice(0, 100))
       const post = await prisma.post.create({
         data: {
           content,
@@ -200,7 +220,6 @@ export async function POST() {
       })
       generated.push(post)
     }
-
     return NextResponse.json({ generated: generated.length, posts: generated })
   } catch (error) {
     console.error(error)

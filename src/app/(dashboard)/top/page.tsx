@@ -221,11 +221,11 @@ export default function TopPage() {
           content: post.content,
           postType: post.postType,
           instruction: `以下のルールでリライトしてください：
-1. 300〜500文字に調整する
+1. 500〜1,500文字に調整する（X Premium長文投稿）
 2. 冒頭140文字で興味を引くフックを入れる（1文目の文末に「。」を入れない）
 3. 脂質データは具体的に数値で示す（例：脂質2.1g、カロリー89kcal）
 4. 絵文字は3〜5個程度（冒頭と要所に配置）
-5. ハッシュタグは最後に2〜3個（#低脂質 #おつまみ #脂質制限 など）
+5. ハッシュタグは原則つけない（つけても最大1個）
 6. らくーん🍊のトーン：親しみやすく、ユーモアを交えつつ、データも示す
 7. アカウントテーマ：遺伝子検査で洋梨型とわかった脂質と戦う1人会社社長が、既製品だけで低脂質おつまみをレビュー
 8. 読者への問いかけや共感を誘う表現を入れる`,
@@ -339,9 +339,9 @@ export default function TopPage() {
                   >
                     {post.postType}
                   </span>
-                  <div className="ml-auto">
-                    <PlatformBadges platform={post.platform} />
-                  </div>
+                  <span className="ml-auto text-xs text-slate-400 font-medium">
+                    {post.postType}
+                  </span>
                 </div>
 
                 {/* Content — expandable, grows to fill card height */}
@@ -385,7 +385,7 @@ export default function TopPage() {
                     className="col-span-2 py-2 disabled:opacity-50 rounded-xl text-xs font-medium transition-all"
                     style={{ background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.25)', color: '#c4b5fd' }}
                   >
-                    {isRegen ? '再生成中...' : '🔄 再生成（300〜500文字）'}
+                    {isRegen ? '再生成中...' : '🔄 再生成（500〜1,500文字）'}
                   </button>
                   <button
                     onClick={() => handleReject(post.id)}
@@ -445,7 +445,7 @@ export default function TopPage() {
               </span>
             </div>
             <div className="flex items-center gap-2 mb-3">
-              <p className="text-xs text-slate-400 flex-1">ハッシュタグは最大2〜3個。内容を自由に編集してください。</p>
+              <p className="text-xs text-slate-400 flex-1">内容を自由に編集してください。</p>
               {originalContent && originalContent !== editContent && (
                 <button
                   onClick={() => setEditContent(originalContent)}
@@ -465,8 +465,8 @@ export default function TopPage() {
             />
             <div className="flex items-center justify-between mt-1 mb-4">
               <span className="text-xs text-slate-500">{editContent.length}文字</span>
-              <span className={`text-xs ${editContent.length < 300 ? 'text-yellow-500' : editContent.length <= 500 ? 'text-green-400' : editContent.length > 25000 ? 'text-red-400' : 'text-slate-500'}`}>
-                {editContent.length < 300 ? `推奨300〜500文字（あと${300 - editContent.length}文字）` : editContent.length <= 500 ? '✅ 推奨範囲内' : `${editContent.length}文字`}
+              <span className={`text-xs ${editContent.length < 500 ? 'text-yellow-500' : editContent.length <= 1500 ? 'text-green-400' : editContent.length > 25000 ? 'text-red-400' : 'text-slate-500'}`}>
+                {editContent.length < 500 ? `推奨500〜1,500文字（あと${500 - editContent.length}文字）` : editContent.length <= 1500 ? '✅ 推奨範囲内' : `${editContent.length}文字`}
               </span>
             </div>
 
