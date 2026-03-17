@@ -9,37 +9,55 @@ interface ScheduleModalProps {
 }
 
 const TIME_SLOTS = [
-  { hour: 7, icon: '🌅', label: '朝 7:00', desc: '起床後のSNSタイム' },
+  { hour: 7,  icon: '🌅', label: '朝 7:00',  desc: '起床後のSNSタイム' },
   { hour: 12, icon: '🌞', label: '昼 12:00', desc: 'ランチ・情報収集' },
   { hour: 21, icon: '🌙', label: '夜 21:00', desc: '就寝前・エンゲージ最大' },
 ]
 
 const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
-const DAY_NAMES = ['月','火','水','木','金','土','日']
+const DAY_NAMES  = ['月','火','水','木','金','土','日']
 
+function pad(n: number) { return n.toString().padStart(2, '0') }
+function startOfDay(d: Date) { const r = new Date(d); r.setHours(0, 0, 0, 0); return r }
+function sameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
 function toKey(d: Date, hour: number) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${hour}`
 }
-function startOfDay(d: Date) {
-  const r = new Date(d); r.setHours(0, 0, 0, 0); return r
-}
-function sameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+/** Convert a Date to the "YYYY-MM-DDTHH:MM" format used by datetime-local inputs */
+function toDtLocal(d: Date) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 export default function ScheduleModal({ postId, defaultScheduledAt, onClose, onScheduled, confirmLabel }: ScheduleModalProps) {
   const today = startOfDay(new Date())
 
-  const [viewYear, setViewYear] = useState(today.getFullYear())
+  // ── Core state ───────────────────────────────────────────────────────────
+  // `customDt` ("YYYY-MM-DDTHH:MM") is the single source of truth.
+  // Calendar + slot buttons are shortcuts that write into customDt.
+  const [customDt,       setCustomDt]       = useState('')
+  const [selectedDate,   setSelectedDate]   = useState<Date | null>(null)
+  const [selectedHour,   setSelectedHour]   = useState<number | null>(null)
+  const [selectedMinute, setSelectedMinute] = useState(0)
+  const [viewYear,  setViewYear]  = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth())
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [selectedHour, setSelectedHour] = useState<number | null>(null)
   const [bookedKeys, setBookedKeys] = useState<Set<string>>(new Set())
-  const [nextSlot, setNextSlot] = useState<{ date: Date; hour: number } | null>(null)
-  const [customTime, setCustomTime] = useState('')
+  const [nextSlot,   setNextSlot]  = useState<{ date: Date; hour: number } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [saving,  setSaving]  = useState(false)
 
+  // ── Apply a Date to ALL state at once ────────────────────────────────────
+  const apply = (d: Date) => {
+    setSelectedDate(startOfDay(d))
+    setSelectedHour(d.getHours())
+    setSelectedMinute(d.getMinutes())
+    setViewYear(d.getFullYear())
+    setViewMonth(d.getMonth())
+    setCustomDt(toDtLocal(d))
+  }
+
+  // ── Bootstrap: fetch booked slots + pre-select ───────────────────────────
   useEffect(() => {
     Promise.all([
       fetch('/api/posts?status=予約済み&limit=200').then(r => r.json()),
@@ -58,25 +76,67 @@ export default function ScheduleModal({ postId, defaultScheduledAt, onClose, onS
         setNextSlot({ date: startOfDay(d), hour: d.getHours() })
       }
 
-      // Pre-select: defaultScheduledAt or next slot
+      // Pre-select: defaultScheduledAt takes priority over next-slot
       if (defaultScheduledAt) {
         const d = new Date(defaultScheduledAt)
         setSelectedDate(startOfDay(d))
         setSelectedHour(d.getHours())
+        setSelectedMinute(d.getMinutes())
         setViewYear(d.getFullYear())
         setViewMonth(d.getMonth())
+        setCustomDt(toDtLocal(d))
       } else if (nextSlotData.scheduledAt) {
         const d = new Date(nextSlotData.scheduledAt)
         setSelectedDate(startOfDay(d))
         setSelectedHour(d.getHours())
+        setSelectedMinute(d.getMinutes())
         setViewYear(d.getFullYear())
         setViewMonth(d.getMonth())
+        setCustomDt(toDtLocal(d))
       }
 
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [defaultScheduledAt])
 
+  // ── Handlers ─────────────────────────────────────────────────────────────
+
+  /** Typing directly in the datetime-local input — update all state */
+  const handleCustomDtChange = (value: string) => {
+    setCustomDt(value)
+    if (value) {
+      const d = new Date(value)
+      if (!isNaN(d.getTime())) {
+        setSelectedDate(startOfDay(d))
+        setSelectedHour(d.getHours())
+        setSelectedMinute(d.getMinutes())
+        setViewYear(d.getFullYear())
+        setViewMonth(d.getMonth())
+      }
+    } else {
+      setSelectedDate(null)
+      setSelectedHour(null)
+      setSelectedMinute(0)
+    }
+  }
+
+  /** Calendar day click — keep current hour:minute, change only date */
+  const handleDayClick = (date: Date) => {
+    const h = selectedHour ?? 7
+    const m = selectedMinute
+    const d = new Date(date)
+    d.setHours(h, m, 0, 0)
+    apply(d)
+  }
+
+  /** Quick time slot click — keep current date, set hour (minute → 0) */
+  const handleSlotClick = (hour: number) => {
+    const base = selectedDate ? new Date(selectedDate) : new Date()
+    base.setHours(hour, 0, 0, 0)
+    apply(base)
+  }
+
+  // ── Calendar helpers ─────────────────────────────────────────────────────
   const isBooked = (date: Date, hour: number) => bookedKeys.has(toKey(date, hour))
 
   const getDayStatus = (date: Date): 'past' | 'full' | 'partial' | 'available' => {
@@ -96,11 +156,12 @@ export default function ScheduleModal({ postId, defaultScheduledAt, onClose, onS
     else setViewMonth(m => m + 1)
   }
 
+  // ── Submit ───────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!selectedDate || selectedHour === null) return
     setSaving(true)
     const dt = new Date(selectedDate)
-    dt.setHours(selectedHour, 0, 0, 0)
+    dt.setHours(selectedHour, selectedMinute, 0, 0)
     try {
       const res = await fetch(`/api/posts/${postId}`, {
         method: 'PATCH',
@@ -111,12 +172,13 @@ export default function ScheduleModal({ postId, defaultScheduledAt, onClose, onS
     } finally { setSaving(false) }
   }
 
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
-  const firstDow = new Date(viewYear, viewMonth, 1).getDay() // 0=Sun
-  const startOffset = (firstDow + 6) % 7 // 0=Mon
+  // ── Derived values ───────────────────────────────────────────────────────
+  const daysInMonth  = new Date(viewYear, viewMonth + 1, 0).getDate()
+  const firstDow     = new Date(viewYear, viewMonth, 1).getDay()
+  const startOffset  = (firstDow + 6) % 7 // 0=Mon
 
   const selectedDt = selectedDate && selectedHour !== null
-    ? new Date(new Date(selectedDate).setHours(selectedHour, 0, 0, 0))
+    ? new Date(new Date(selectedDate).setHours(selectedHour, selectedMinute, 0, 0))
     : null
 
   const isPastDt = selectedDt !== null && selectedDt < new Date()
@@ -145,7 +207,49 @@ export default function ScheduleModal({ postId, defaultScheduledAt, onClose, onS
           <div className="text-center py-10 text-slate-400 text-sm">読み込み中...</div>
         ) : (
           <>
-            {/* Calendar */}
+            {/* ── datetime-local: primary input (always synced) ── */}
+            <div className="mb-4">
+              <label className="block text-xs text-slate-400 mb-1.5">📅 日付と時間（直接入力・変更可能）</label>
+              <input
+                type="datetime-local"
+                value={customDt}
+                onChange={e => handleCustomDtChange(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl text-sm text-white focus:outline-none"
+                style={{
+                  background: 'rgba(255,255,255,0.07)',
+                  border: `1px solid ${isPastDt ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.14)'}`,
+                }}
+              />
+              {isPastDt && <p className="text-xs text-red-400 mt-1">⚠️ 過去の日時は選択できません</p>}
+            </div>
+
+            {/* ── Quick time slots ── */}
+            <div className="mb-4">
+              <p className="text-xs text-slate-400 mb-2">⚡ おすすめ時間帯（クリックで時間を自動入力）</p>
+              <div className="grid grid-cols-3 gap-2">
+                {TIME_SLOTS.map(slot => {
+                  const chosen = selectedHour === slot.hour && selectedMinute === 0
+                  return (
+                    <button
+                      key={slot.hour}
+                      onClick={() => handleSlotClick(slot.hour)}
+                      className="flex flex-col items-center py-2 px-1 rounded-xl text-xs font-medium transition-all"
+                      style={
+                        chosen
+                          ? { background: 'rgba(249,115,22,0.2)', border: '1px solid #f97316', color: '#fb923c' }
+                          : { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }
+                      }
+                    >
+                      <span className="text-base mb-0.5">{slot.icon}</span>
+                      <span className="font-bold">{slot.label}</span>
+                      <span className="text-[10px] opacity-70 mt-0.5">{slot.desc}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* ── Calendar ── */}
             <div className="rounded-xl p-3 mb-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
               {/* Month nav */}
               <div className="flex items-center justify-between mb-3">
@@ -165,29 +269,29 @@ export default function ScheduleModal({ postId, defaultScheduledAt, onClose, onS
               <div className="grid grid-cols-7 gap-0.5">
                 {Array.from({ length: startOffset }).map((_, i) => <div key={`e${i}`} />)}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
-                  const day = i + 1
-                  const date = new Date(viewYear, viewMonth, day)
-                  const status = getDayStatus(date)
-                  const isToday = sameDay(date, today)
-                  const isSel = selectedDate !== null && sameDay(date, selectedDate)
-                  const dow = date.getDay()
-                  const isPast = status === 'past'
-                  const isFull = status === 'full'
+                  const day   = i + 1
+                  const date  = new Date(viewYear, viewMonth, day)
+                  const status    = getDayStatus(date)
+                  const isToday   = sameDay(date, today)
+                  const isSel     = selectedDate !== null && sameDay(date, selectedDate)
+                  const dow       = date.getDay()
+                  const isPast    = status === 'past'
+                  const isFull    = status === 'full'
                   const clickable = !isPast && !isFull
 
-                  let bg = 'transparent'
+                  let bg   = 'transparent'
                   let text = isPast ? 'text-slate-700' : dow === 0 ? 'text-red-400' : dow === 6 ? 'text-blue-400' : 'text-slate-200'
-                  if (isSel) { bg = '#f97316'; text = 'text-white' }
+                  if (isSel)       { bg = '#f97316'; text = 'text-white' }
                   else if (isToday) bg = 'rgba(249,115,22,0.22)'
 
                   const dotColor = isPast || isSel ? '' :
                     status === 'available' ? '#10b981' :
-                    status === 'partial' ? '#fbbf24' : '#4b5563'
+                    status === 'partial'   ? '#fbbf24' : '#4b5563'
 
                   return (
                     <button
                       key={day}
-                      onClick={() => clickable && setSelectedDate(startOfDay(date))}
+                      onClick={() => clickable && handleDayClick(date)}
                       disabled={!clickable}
                       className={`relative flex flex-col items-center justify-center h-8 rounded-lg text-xs font-medium transition-all ${text} ${clickable && !isSel ? 'hover:bg-white/10' : ''}`}
                       style={{ background: bg }}
@@ -209,68 +313,13 @@ export default function ScheduleModal({ postId, defaultScheduledAt, onClose, onS
               </div>
             </div>
 
-            {/* Time slot buttons */}
-            {selectedDate && (
-              <div className="mb-4">
-                <p className="text-xs text-slate-400 mb-2">
-                  {selectedDate.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })} の投稿時間
-                </p>
-                <div className="grid grid-cols-3 gap-2 mb-2">
-                  {TIME_SLOTS.map(slot => {
-                    const booked = isBooked(selectedDate, slot.hour)
-                    const chosen = selectedHour === slot.hour
-                    return (
-                      <button
-                        key={slot.hour}
-                        onClick={() => !booked && setSelectedHour(slot.hour)}
-                        disabled={booked}
-                        className={`flex flex-col items-center py-2.5 px-1 rounded-xl text-xs font-medium transition-all ${!booked && !chosen ? 'hover:border-orange-500/50' : ''}`}
-                        style={
-                          chosen
-                            ? { background: 'rgba(249,115,22,0.2)', border: '1px solid #f97316', color: '#fb923c' }
-                            : booked
-                              ? { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', color: '#4b5563', cursor: 'not-allowed' }
-                              : { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }
-                        }
-                      >
-                        <span className="text-lg mb-0.5">{slot.icon}</span>
-                        <span className="font-bold">{slot.label}</span>
-                        <span className="text-[10px] opacity-70 mt-0.5">{booked ? '予約済み' : slot.desc}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-                {/* Custom time */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-slate-500 whitespace-nowrap">カスタム時間:</span>
-                  <input
-                    type="time"
-                    value={customTime}
-                    onChange={e => {
-                      setCustomTime(e.target.value)
-                      if (e.target.value) {
-                        const h = parseInt(e.target.value.split(':')[0], 10)
-                        setSelectedHour(h)
-                      }
-                    }}
-                    className="flex-1 px-2 py-1.5 rounded-lg text-sm text-white focus:outline-none"
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Past date error */}
-            {isPastDt && (
-              <p className="text-xs text-red-400 mb-3">⚠️ 過去の日時は選択できません</p>
-            )}
-
-            {/* Selected display */}
-            {selectedDt && (
+            {/* ── Confirmed datetime display ── */}
+            {selectedDt && !isPastDt && (
               <div className="rounded-xl p-3 mb-4" style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)' }}>
                 <p className="text-[10px] text-orange-400 font-medium uppercase tracking-wide">予約日時</p>
                 <p className="text-sm font-bold text-white mt-0.5">
-                  {selectedDt.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })} {selectedHour}:00
+                  {selectedDt.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}{' '}
+                  {pad(selectedHour!)}:{pad(selectedMinute)}
                 </p>
               </div>
             )}
