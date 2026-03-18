@@ -16,9 +16,7 @@ function authorized(req: NextRequest): boolean {
   const secret = process.env.ADMIN_PASSWORD || 'raccoon2026'
   const authHeader = req.headers.get('authorization')
   const querySecret = new URL(req.url).searchParams.get('secret')
-  // TEMP_BYPASS: remove after seed execution
-  if (querySecret === 'seed-raccoon-2026-tmp') return true
-  return authHeader === `Bearer ${secret}` || querySecret === secret
+return authHeader === `Bearer ${secret}` || querySecret === secret
 }
 
 // ── Schedule helpers ─────────────────────────────────────────────────────────
