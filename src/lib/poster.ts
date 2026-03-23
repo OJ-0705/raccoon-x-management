@@ -104,22 +104,29 @@ export async function postToX(content: string): Promise<PostResult> {
   }
 }
 
-// ── Threads credentials: check DB first, fall back to env vars ──────────────
+// ── Threads credentials: env vars first, DB as fallback ──────────────────────
 async function getThreadsCredentials(): Promise<{ accessToken: string; userId: string }> {
+  const envToken = (process.env.THREADS_ACCESS_TOKEN || '').trim()
+  const envUserId = (process.env.THREADS_USER_ID || '').trim()
+
+  // If both env vars are set, use them directly (no DB lookup needed)
+  if (envToken && envUserId) {
+    return { accessToken: envToken, userId: envUserId }
+  }
+
+  // Fall back to DB for any missing values
   try {
     const { prisma } = await import('@/lib/prisma')
     const [tokenRow, userIdRow] = await Promise.all([
-      prisma.settings.findUnique({ where: { key: 'threads_access_token' } }),
-      prisma.settings.findUnique({ where: { key: 'threads_user_id' } }),
+      !envToken ? prisma.settings.findUnique({ where: { key: 'threads_access_token' } }) : Promise.resolve(null),
+      !envUserId ? prisma.settings.findUnique({ where: { key: 'threads_user_id' } }) : Promise.resolve(null),
     ])
-    const accessToken = tokenRow?.value || (process.env.THREADS_ACCESS_TOKEN || '').trim()
-    const userId = userIdRow?.value || (process.env.THREADS_USER_ID || '').trim()
-    return { accessToken, userId }
-  } catch {
     return {
-      accessToken: (process.env.THREADS_ACCESS_TOKEN || '').trim(),
-      userId: (process.env.THREADS_USER_ID || '').trim(),
+      accessToken: envToken || tokenRow?.value || '',
+      userId: envUserId || userIdRow?.value || '',
     }
+  } catch {
+    return { accessToken: envToken, userId: envUserId }
   }
 }
 
