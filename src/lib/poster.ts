@@ -104,19 +104,36 @@ export async function postToX(content: string): Promise<PostResult> {
   }
 }
 
+// ── Threads credentials: check DB first, fall back to env vars ──────────────
+async function getThreadsCredentials(): Promise<{ accessToken: string; userId: string }> {
+  try {
+    const { prisma } = await import('@/lib/prisma')
+    const [tokenRow, userIdRow] = await Promise.all([
+      prisma.settings.findUnique({ where: { key: 'threads_access_token' } }),
+      prisma.settings.findUnique({ where: { key: 'threads_user_id' } }),
+    ])
+    const accessToken = tokenRow?.value || (process.env.THREADS_ACCESS_TOKEN || '').trim()
+    const userId = userIdRow?.value || (process.env.THREADS_USER_ID || '').trim()
+    return { accessToken, userId }
+  } catch {
+    return {
+      accessToken: (process.env.THREADS_ACCESS_TOKEN || '').trim(),
+      userId: (process.env.THREADS_USER_ID || '').trim(),
+    }
+  }
+}
+
 // ── Threads ─────────────────────────────────────────────────────────────────
 export async function postToThreads(content: string): Promise<PostResult> {
-  console.log('=== Threads API Environment Variables Check ===')
-  console.log('THREADS_ACCESS_TOKEN exists:', !!process.env.THREADS_ACCESS_TOKEN, '| length:', process.env.THREADS_ACCESS_TOKEN?.trim().length ?? 0)
-  console.log('THREADS_USER_ID exists:', !!process.env.THREADS_USER_ID, '| length:', process.env.THREADS_USER_ID?.trim().length ?? 0)
-
   if (process.env.SIMULATE_MODE === 'true') {
     console.warn('[poster] SIMULATE_MODE=true — skipping real Threads API call')
     return { simulated: true, id: `sim_threads_${Date.now()}` }
   }
 
-  const accessToken = (process.env.THREADS_ACCESS_TOKEN || '').trim()
-  const userId = (process.env.THREADS_USER_ID || '').trim()
+  const { accessToken, userId } = await getThreadsCredentials()
+  console.log('=== Threads Credentials Check ===')
+  console.log('accessToken exists:', !!accessToken, '| length:', accessToken.length)
+  console.log('userId exists:', !!userId, '| value:', userId)
 
   if (!accessToken || !userId) {
     const missing = [

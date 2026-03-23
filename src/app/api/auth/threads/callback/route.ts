@@ -47,7 +47,23 @@ export async function GET(req: NextRequest) {
     const finalToken = longData.access_token || tokenData.access_token
     const userId = tokenData.user_id
 
-    // Redirect to settings with token info (user saves it to Vercel env vars)
+    // Save credentials to DB so poster.ts can use them without Vercel env var update
+    const { prisma } = await import('@/lib/prisma')
+    await Promise.all([
+      prisma.settings.upsert({
+        where: { key: 'threads_access_token' },
+        create: { key: 'threads_access_token', value: finalToken },
+        update: { value: finalToken },
+      }),
+      prisma.settings.upsert({
+        where: { key: 'threads_user_id' },
+        create: { key: 'threads_user_id', value: String(userId) },
+        update: { value: String(userId) },
+      }),
+    ])
+    console.log('[threads-callback] Saved new token and userId to Settings table')
+
+    // Redirect to settings with success confirmation
     const params = new URLSearchParams({
       tab: 'accounts',
       threads_token: finalToken,

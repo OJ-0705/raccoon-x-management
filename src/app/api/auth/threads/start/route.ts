@@ -6,9 +6,8 @@ export async function GET() {
     return NextResponse.json({ error: 'THREADS_APP_ID が設定されていません' }, { status: 400 })
   }
 
-  const baseUrl = process.env.NEXTAUTH_URL || process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:3000'
+  const baseUrl = process.env.NEXTAUTH_URL
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3001')
 
   const redirectUri = encodeURIComponent(`${baseUrl}/api/auth/threads/callback`)
   const scope = encodeURIComponent('threads_basic,threads_content_publish')
