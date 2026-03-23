@@ -126,7 +126,7 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
       await fetch(`/api/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: editContent, scheduledAt: editScheduledAt || null, platform: editPlatform }),
+        body: JSON.stringify({ content: editContent, scheduledAt: editScheduledAt ? new Date(editScheduledAt).toISOString() : null, platform: editPlatform }),
       })
       onRefresh?.()
       setShowEdit(false)
