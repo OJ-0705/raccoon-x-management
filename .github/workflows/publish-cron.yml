@@ -1,0 +1,24 @@
+name: Publish Scheduled Posts
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch:  # Allow manual trigger from GitHub UI
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Trigger publish cron
+        run: |
+          RESPONSE=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            -X GET \
+            "https://raccoon-x-management.vercel.app/api/cron/publish")
+          echo "HTTP Status: $RESPONSE"
+          cat /tmp/response.json
+          if [ "$RESPONSE" != "200" ]; then
+            echo "Error: Unexpected HTTP status $RESPONSE"
+            exit 1
+          fi

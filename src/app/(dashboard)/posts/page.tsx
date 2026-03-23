@@ -33,6 +33,27 @@ function PostsContent() {
   const [typeFilter, setTypeFilter] = useState('すべて')
   const [page, setPage] = useState(1)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [cronRunning, setCronRunning] = useState(false)
+  const [cronResult, setCronResult] = useState<string | null>(null)
+
+  const runCron = async () => {
+    setCronRunning(true)
+    setCronResult(null)
+    try {
+      const res = await fetch('/api/cron/publish')
+      const data = await res.json()
+      if (data.posted > 0) {
+        setCronResult(`✅ ${data.posted}件を投稿しました`)
+      } else {
+        setCronResult('ℹ️ 投稿対象なし（予約時刻を過ぎた予約済み投稿がありません）')
+      }
+      fetchPosts()
+    } catch {
+      setCronResult('❌ 実行エラー')
+    } finally {
+      setCronRunning(false)
+    }
+  }
 
   const fetchPosts = useCallback(async () => {
     setLoading(true)
@@ -82,13 +103,29 @@ function PostsContent() {
           <h1 className="text-2xl font-bold text-white">投稿管理</h1>
           <p className="text-slate-400 text-sm mt-1">全{total}件</p>
         </div>
-        <Link
-          href="/posts/new"
-          className="px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-sm font-medium transition-colors"
-        >
-          ✏️ 新規投稿
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={runCron}
+            disabled={cronRunning}
+            className="px-4 py-2 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+            style={{ background: cronRunning ? 'rgba(255,255,255,0.1)' : 'rgba(59,130,246,0.7)' }}
+            title="予約時刻を過ぎた投稿を今すぐ送信"
+          >
+            {cronRunning ? '⏳ 実行中...' : '🚀 予約実行'}
+          </button>
+          <Link
+            href="/posts/new"
+            className="px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-sm font-medium transition-colors"
+          >
+            ✏️ 新規投稿
+          </Link>
+        </div>
       </div>
+      {cronResult && (
+        <div className="px-4 py-2 rounded-xl text-sm text-white" style={{ background: 'rgba(255,255,255,0.08)' }}>
+          {cronResult}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="space-y-3">
