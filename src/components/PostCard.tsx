@@ -9,6 +9,8 @@ interface Post {
   impressions: number; likes: number; retweets: number; replies: number; bookmarks: number
   threadsImp?: number; threadsLikes?: number; threadsReplies?: number; threadsReposts?: number
   createdAt: string; abGroupId?: string | null; abVariant?: string | null
+  qualityScore?: number | null; qualityDetail?: string | null; qualityFeedback?: string | null
+  isFavorite?: boolean
 }
 
 const POST_TYPE_COLORS: Record<string, string> = {
@@ -56,10 +58,15 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
   const [savingVariant, setSavingVariant] = useState(false)
   const [platform, setPlatform] = useState(post.platform || 'both')
   const [updatingPlatform, setUpdatingPlatform] = useState(false)
-  // Score
+  // Score (engagement prediction)
   const [score, setScore] = useState<{ score: number; predictedEngagement: number; feedback: string } | null>(null)
   const [scoring, setScoring] = useState(false)
   const [showScore, setShowScore] = useState(false)
+  // Quality score (7-item)
+  const [showQualityDetail, setShowQualityDetail] = useState(false)
+  // isFavorite
+  const [isFavorite, setIsFavorite] = useState(post.isFavorite ?? false)
+  const [togglingFav, setTogglingFav] = useState(false)
   // A/B test
   const [showAB, setShowAB] = useState(false)
   const [abLoading, setAbLoading] = useState(false)
@@ -199,6 +206,17 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
     } finally { setAbLoading(false) }
   }
 
+  const toggleFavorite = async () => {
+    setTogglingFav(true)
+    try {
+      await fetch(`/api/posts/${post.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isFavorite: !isFavorite }),
+      })
+      setIsFavorite(!isFavorite)
+    } finally { setTogglingFav(false) }
+  }
+
   const handlePublishNow = async () => {
     if (!confirm('今すぐ投稿しますか？')) return
     setPublishing(true)
@@ -239,9 +257,59 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
                 A/B {post.abVariant}
               </span>
             )}
+            {post.qualityScore != null && (
+              <button
+                onClick={() => setShowQualityDetail(v => !v)}
+                className="text-xs px-2 py-0.5 rounded-full font-bold transition-opacity hover:opacity-80"
+                style={{
+                  background: post.qualityScore >= 8.5 ? 'rgba(16,185,129,0.2)' : post.qualityScore >= 7.0 ? 'rgba(249,115,22,0.2)' : 'rgba(239,68,68,0.2)',
+                  color: post.qualityScore >= 8.5 ? '#6ee7b7' : post.qualityScore >= 7.0 ? '#fb923c' : '#fca5a5',
+                  border: `1px solid ${post.qualityScore >= 8.5 ? 'rgba(16,185,129,0.3)' : post.qualityScore >= 7.0 ? 'rgba(249,115,22,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                }}
+                title="品質スコアの詳細を見る"
+              >
+                ⭐ {post.qualityScore.toFixed(1)}
+              </button>
+            )}
           </div>
           <span className="text-xs text-slate-500 whitespace-nowrap shrink-0">{formatDate(post.createdAt)}</span>
         </div>
+
+        {/* Quality score detail panel */}
+        {showQualityDetail && post.qualityScore != null && (
+          <div className="mb-3 rounded-xl p-3 text-xs" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-slate-300 font-medium">品質スコア詳細</span>
+              <span className="font-bold" style={{ color: post.qualityScore >= 8.5 ? '#6ee7b7' : post.qualityScore >= 7.0 ? '#fb923c' : '#fca5a5' }}>
+                平均 {post.qualityScore.toFixed(1)} / 10
+              </span>
+            </div>
+            {post.qualityDetail && (() => {
+              try {
+                const d = JSON.parse(post.qualityDetail)
+                const labels: Record<string, string> = {
+                  naturalness: '自然さ', specificity: '具体性', empathy: '感情移入',
+                  persona: 'ペルソナ', tempo: 'テンポ', experience: '体験語り', authenticity: '業者臭のなさ',
+                }
+                return (
+                  <div className="grid grid-cols-2 gap-1 mb-2">
+                    {Object.entries(d).map(([k, v]) => (
+                      <div key={k} className="flex items-center justify-between gap-1">
+                        <span className="text-slate-400">{labels[k] || k}</span>
+                        <span className="font-medium" style={{ color: (v as number) >= 8 ? '#6ee7b7' : (v as number) >= 6 ? '#fb923c' : '#fca5a5' }}>
+                          {v as number}/10
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              } catch { return null }
+            })()}
+            {post.qualityFeedback && (
+              <p className="text-slate-400 italic border-t border-white/5 pt-2 mt-1">{post.qualityFeedback}</p>
+            )}
+          </div>
+        )}
 
         {/* Content */}
         <p className="text-sm text-slate-200 whitespace-pre-wrap mb-3 leading-relaxed">{post.content}</p>
@@ -340,6 +408,19 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
               🆎 A/Bテスト
             </button>
           )}
+          <button
+            onClick={toggleFavorite}
+            disabled={togglingFav}
+            className="text-sm px-3 py-1.5 rounded-xl transition-all disabled:opacity-50"
+            style={{
+              background: isFavorite ? 'rgba(234,179,8,0.2)' : 'rgba(255,255,255,0.06)',
+              border: isFavorite ? '1px solid rgba(234,179,8,0.4)' : '1px solid rgba(255,255,255,0.08)',
+              color: isFavorite ? '#fde047' : '#6b7280',
+            }}
+            title={isFavorite ? 'お気に入り解除' : 'お気に入りにマーク（次の生成に活用）'}
+          >
+            {isFavorite ? '👍 良い投稿' : '👍'}
+          </button>
           {onDelete && (
             <button
               onClick={() => onDelete(post.id)}

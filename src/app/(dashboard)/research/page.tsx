@@ -15,6 +15,16 @@ interface Keyword {
   createdAt: string
 }
 
+interface BuzzPattern {
+  id: string
+  sourceUrl?: string | null
+  sourceText: string
+  hookType: string
+  structure: string
+  analysis: string
+  createdAt: string
+}
+
 export default function ResearchPage() {
   const [competitors, setCompetitors] = useState<Competitor[]>([])
   const [keywords, setKeywords] = useState<Keyword[]>([])
@@ -22,21 +32,65 @@ export default function ResearchPage() {
   const [newKeyword, setNewKeyword] = useState('')
   const [loading, setLoading] = useState(true)
 
+  // BuzzPattern state
+  const [buzzPatterns, setBuzzPatterns] = useState<BuzzPattern[]>([])
+  const [newBuzzText, setNewBuzzText] = useState('')
+  const [newBuzzUrl, setNewBuzzUrl] = useState('')
+  const [addingBuzz, setAddingBuzz] = useState(false)
+  const [buzzError, setBuzzError] = useState('')
+  const [expandedBuzz, setExpandedBuzz] = useState<string | null>(null)
+
   useEffect(() => {
     fetchData()
   }, [])
 
   const fetchData = async () => {
     try {
-      const [compRes, kwRes] = await Promise.all([
+      const [compRes, kwRes, buzzRes] = await Promise.all([
         fetch('/api/competitors').then(r => r.json()),
         fetch('/api/keywords').then(r => r.json()),
+        fetch('/api/buzz-patterns').then(r => r.json()),
       ])
       setCompetitors(compRes)
       setKeywords(kwRes)
+      setBuzzPatterns(buzzRes.patterns || [])
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleAddBuzzPattern = async () => {
+    if (!newBuzzText.trim()) return
+    setAddingBuzz(true)
+    setBuzzError('')
+    try {
+      const res = await fetch('/api/buzz-patterns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceText: newBuzzText, sourceUrl: newBuzzUrl || undefined }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setNewBuzzText('')
+        setNewBuzzUrl('')
+        fetchData()
+      } else {
+        setBuzzError(data.error || '登録に失敗しました')
+      }
+    } catch {
+      setBuzzError('登録に失敗しました')
+    } finally {
+      setAddingBuzz(false)
+    }
+  }
+
+  const handleDeleteBuzzPattern = async (id: string) => {
+    await fetch('/api/buzz-patterns', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    fetchData()
   }
 
   const handleAddCompetitor = async () => {
@@ -258,6 +312,106 @@ export default function ResearchPage() {
               </ul>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Buzz Patterns */}
+      <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-white">バズパターン登録</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              伸びた競合投稿を登録 → AIが構造を分析 → 次の投稿生成に活用
+              {buzzPatterns.length < 5 && (
+                <span className="text-orange-400 ml-2">（5件以上で自動注入）現在{buzzPatterns.length}件</span>
+              )}
+              {buzzPatterns.length >= 5 && (
+                <span className="text-green-400 ml-2">✅ {buzzPatterns.length}件登録済み・自動注入中</span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {/* Add form */}
+        <div className="space-y-2 mb-5">
+          <textarea
+            value={newBuzzText}
+            onChange={e => setNewBuzzText(e.target.value)}
+            placeholder="バズった投稿のテキストをそのままペースト（URLまたは全文）"
+            rows={4}
+            className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-orange-500 resize-none"
+          />
+          <input
+            type="text"
+            value={newBuzzUrl}
+            onChange={e => setNewBuzzUrl(e.target.value)}
+            placeholder="投稿URL（任意）"
+            className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-orange-500"
+          />
+          {buzzError && <p className="text-xs text-red-400">{buzzError}</p>}
+          <button
+            onClick={handleAddBuzzPattern}
+            disabled={addingBuzz || !newBuzzText.trim()}
+            className="w-full py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            {addingBuzz ? 'AI分析中...' : '✨ AIで構造分析して登録'}
+          </button>
+        </div>
+
+        {/* Pattern list */}
+        <div className="space-y-3">
+          {buzzPatterns.map(p => {
+            let analysis: Record<string, string> = {}
+            try { analysis = JSON.parse(p.analysis) } catch { /* ignore */ }
+            return (
+              <div key={p.id} className="bg-gray-900 rounded-xl p-4 border border-gray-700">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'rgba(249,115,22,0.2)', color: '#fb923c', border: '1px solid rgba(249,115,22,0.3)' }}>
+                      {p.hookType}
+                    </span>
+                    <span className="text-xs text-gray-400">{p.structure}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => setExpandedBuzz(expandedBuzz === p.id ? null : p.id)}
+                      className="text-xs text-blue-400 hover:text-blue-300"
+                    >
+                      {expandedBuzz === p.id ? '▲ 閉じる' : '▼ 詳細'}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteBuzzPattern(p.id)}
+                      className="text-xs text-red-400 hover:text-red-300"
+                    >
+                      削除
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400 line-clamp-2">{p.sourceText.slice(0, 120)}...</p>
+                {expandedBuzz === p.id && (
+                  <div className="mt-3 pt-3 border-t border-gray-700 space-y-1.5">
+                    <p className="text-xs text-gray-300 whitespace-pre-wrap">{p.sourceText}</p>
+                    {Object.entries(analysis).map(([k, v]) => (
+                      <div key={k} className="flex gap-2 text-xs">
+                        <span className="text-gray-500 shrink-0">{k}:</span>
+                        <span className="text-gray-300">{v}</span>
+                      </div>
+                    ))}
+                    {p.sourceUrl && (
+                      <a href={p.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 hover:underline">
+                        元URL →
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {buzzPatterns.length === 0 && (
+            <p className="text-sm text-gray-500 text-center py-6">
+              バズった投稿を登録して、AIの生成精度を上げましょう
+            </p>
+          )}
         </div>
       </div>
 

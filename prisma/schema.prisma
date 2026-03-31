@@ -32,8 +32,22 @@ model Post {
   threadsReposts   Int       @default(0)
   abGroupId        String?
   abVariant        String?
+  qualityScore     Float?
+  qualityDetail    String?
+  qualityFeedback  String?
+  isFavorite       Boolean   @default(false)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+}
+
+model BuzzPattern {
+  id          String   @id @default(cuid())
+  sourceUrl   String?
+  sourceText  String
+  analysis    String
+  hookType    String
+  structure   String
+  createdAt   DateTime @default(now())
 }
 
 model Competitor {

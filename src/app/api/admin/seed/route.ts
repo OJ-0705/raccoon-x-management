@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import Anthropic from '@anthropic-ai/sdk'
+import { scorePost, getEngagementTop5, getFavoritePosts, buildEngagementPromptBlock, getBuzzPatternBlock } from '@/lib/quality-gate'
 
 // ── Auth ────────────────────────────────────────────────────────────────────
 function authorized(req: NextRequest): boolean {
@@ -451,6 +452,8 @@ async function generateWithAI(
   seed: { emotion: string; scene: string; target: string },
   existingExcerpts: string[],
   notionContext?: string,
+  engagementBlock?: string,
+  buzzBlock?: string,
 ): Promise<string | null> {
   const apiKey = (process.env.ANTHROPIC_API_KEY || '').trim()
   if (!apiKey) return null
@@ -462,6 +465,9 @@ async function generateWithAI(
   const notionBlock = notionContext
     ? `\n【最新の商品情報・知識（積極的に活用してください）】\n${notionContext}\n`
     : ''
+
+  const engagementSection = engagementBlock ? `\n${engagementBlock}\n` : ''
+  const buzzSection = buzzBlock ? `\n${buzzBlock}\n` : ''
 
   const formatInstruction = formatType === 'short'
     ? `形式: 短文投稿（140文字以内）
@@ -481,7 +487,7 @@ async function generateWithAI(
 - 場面設定：${seed.scene}
 - 語りの対象：${seed.target}
 この切り口でマサキのリアルな一人称で投稿を書いてください。
-${existingBlock}${notionBlock}
+${existingBlock}${notionBlock}${engagementSection}${buzzSection}
 ${formatInstruction}
 
 【絶対禁止】
@@ -532,34 +538,33 @@ export async function POST(req: NextRequest) {
 
   const results: string[] = []
 
-  // 1. Delete ALL posts
+  // 1. Fetch engagement TOP5 + favorites BEFORE deleting (they'll be gone after delete)
+  const [top5, favorites, buzzBlock] = await Promise.all([
+    getEngagementTop5(),
+    getFavoritePosts(),
+    getBuzzPatternBlock(),
+  ])
+  const engagementBlock = buildEngagementPromptBlock(top5, favorites)
+  if (top5.length > 0) results.push(`✅ エンゲージメントTOP${top5.length}件をプロンプトに注入`)
+  if (favorites.length > 0) results.push(`✅ お気に入り${favorites.length}件をプロンプトに注入`)
+  if (buzzBlock) results.push(`✅ バズパターンをプロンプトに注入`)
+
+  // 2. Delete ALL posts
   const deleted = await prisma.post.deleteMany({})
   results.push(`✅ 全投稿 ${deleted.count} 件を削除しました`)
 
-  // 2. Fetch Notion context if available
+  // 3. Fetch Notion context if available
   const notionContext = await fetchNotionContext()
   if (notionContext) {
     results.push(`✅ Notionコンテキストを読み込みました（${notionContext.length}文字）`)
   }
 
-  // 3. Fetch recent posts for duplicate prevention
-  const [postedPosts, scheduledPosts] = await Promise.all([
-    prisma.post.findMany({
-      where: { status: '投稿済み' },
-      orderBy: { postedAt: 'desc' },
-      take: 50,
-      select: { content: true },
-    }),
-    prisma.post.findMany({
-      where: { status: { in: ['予約済み', '承認待ち'] } },
-      select: { content: true },
-    }),
-  ])
-  const existingExcerpts = [...postedPosts, ...scheduledPosts].map(p => p.content.slice(0, 100))
+  // 4. Fetch recent posts for duplicate prevention (empty after delete, but keep for safety)
+  const existingExcerpts: string[] = []
 
-  // 4. Create 15 new 承認待ち posts
-  const created: Array<{ id: string; postType: string; formatType: string; scheduledAt: Date; source: string; hook: string }> = []
-  const generatedExcerpts: string[] = [...existingExcerpts]
+  // 5. Create 15 new 承認待ち posts with quality gate
+  const created: Array<{ id: string; postType: string; formatType: string; scheduledAt: Date; source: string; hook: string; score: number | null }> = []
+  const generatedExcerpts: string[] = []
 
   for (let i = 0; i < POSTS_PLAN.length; i++) {
     const plan = POSTS_PLAN[i]
@@ -567,25 +572,62 @@ export async function POST(req: NextRequest) {
 
     let content: string | null = null
     let source = 'template'
+    let qualityResult: { qualityScore: number | null; qualityDetail: string | null; qualityFeedback: string | null } = {
+      qualityScore: null, qualityDetail: null, qualityFeedback: null,
+    }
 
-    const aiContent = await generateWithAI(plan.postType, plan.keywords, plan.formatType, seed, generatedExcerpts, notionContext || undefined)
-    if (aiContent) {
-      const hook = aiContent.slice(0, 20)
-      const isDuplicate = generatedExcerpts.some(e => e.slice(0, 20) === hook)
-      if (isDuplicate) {
-        const retry = await generateWithAI(plan.postType, plan.keywords, plan.formatType, seed, generatedExcerpts, notionContext || undefined)
-        content = retry && !generatedExcerpts.some(e => e.slice(0, 20) === retry.slice(0, 20))
-          ? retry
-          : aiContent
-        source = 'AI(retry)'
-      } else {
-        content = aiContent
-        source = 'AI'
+    // Quality-gated generation: up to 3 attempts
+    let bestContent: string | null = null
+    let bestScore: import('@/lib/quality-gate').QualityScore | null = null
+    let attempts = 0
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      attempts++
+      const aiContent = await generateWithAI(
+        plan.postType, plan.keywords, plan.formatType, seed,
+        [...existingExcerpts, ...generatedExcerpts],
+        notionContext || undefined,
+        engagementBlock || undefined,
+        buzzBlock || undefined,
+      )
+      if (!aiContent) break
+
+      const quality = await scorePost(aiContent)
+
+      if (!quality) {
+        bestContent = aiContent
+        source = attempt === 0 ? 'AI' : 'AI(retry)'
+        break
+      }
+
+      if (quality.passed) {
+        bestContent = aiContent
+        bestScore = quality
+        source = attempt === 0 ? 'AI' : `AI(retry×${attempt})`
+        break
+      }
+
+      if (!bestScore || quality.average > bestScore.average) {
+        bestContent = aiContent
+        bestScore = quality
       }
     }
 
+    content = bestContent
+
     if (!content) {
       content = getTemplate(plan.postType)
+      source = 'template'
+    } else {
+      source = source || 'AI'
+    }
+
+    if (bestScore) {
+      qualityResult = {
+        qualityScore: bestScore.average,
+        qualityDetail: JSON.stringify(bestScore.scores),
+        qualityFeedback: bestScore.feedback,
+      }
     }
 
     generatedExcerpts.push(content.slice(0, 100))
@@ -598,12 +640,16 @@ export async function POST(req: NextRequest) {
         status: '承認待ち',
         scheduledAt: scheduledAt(i),
         platform: 'both',
+        qualityScore: qualityResult.qualityScore ?? undefined,
+        qualityDetail: qualityResult.qualityDetail ?? undefined,
+        qualityFeedback: qualityResult.qualityFeedback ?? undefined,
       },
     })
 
     const hook = content.split('\n')[0].slice(0, 40)
-    created.push({ id: post.id, postType: plan.postType, formatType: plan.formatType, scheduledAt: post.scheduledAt!, source, hook })
-    results.push(`  [${i + 1}/15] ${plan.postType}(${plan.formatType}) (${seed.emotion}×${seed.scene}) → ${post.scheduledAt!.toISOString()} (${source})`)
+    const scoreStr = qualityResult.qualityScore != null ? ` [⭐${qualityResult.qualityScore.toFixed(1)}]` : ''
+    created.push({ id: post.id, postType: plan.postType, formatType: plan.formatType, scheduledAt: post.scheduledAt!, source, hook, score: qualityResult.qualityScore })
+    results.push(`  [${i + 1}/15] ${plan.postType}(${plan.formatType}) (${seed.emotion}×${seed.scene}) → ${source}${scoreStr} (試行${attempts}回)`)
   }
 
   return NextResponse.json({
@@ -612,7 +658,7 @@ export async function POST(req: NextRequest) {
     deleted: deleted.count,
     created: created.length,
     posts: created,
-    hooks: created.map((p, i) => `[${i + 1}] [${p.formatType}] ${p.hook}`),
+    hooks: created.map((p, i) => `[${i + 1}] [${p.formatType}]${p.score != null ? ` ⭐${p.score.toFixed(1)}` : ''} ${p.hook}`),
   })
 }
 

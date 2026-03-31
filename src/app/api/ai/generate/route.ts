@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { scorePost, getEngagementTop5, getFavoritePosts, buildEngagementPromptBlock, getBuzzPatternBlock } from '@/lib/quality-gate'
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || '',
@@ -285,6 +286,19 @@ function randomSeed() {
   }
 }
 
+async function callAI(
+  userPrompt: string,
+  formatType: string,
+): Promise<string> {
+  const message = await client.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: formatType === 'short' ? 400 : formatType === '長文投稿' ? 4000 : 2000,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userPrompt }],
+  })
+  return message.content[0].type === 'text' ? message.content[0].text : ''
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
@@ -296,6 +310,14 @@ export async function POST(req: NextRequest) {
         generated: false,
       })
     }
+
+    // Fetch engagement TOP5 + favorites + buzz patterns for prompt injection
+    const [top5, favorites, buzzBlock] = await Promise.all([
+      getEngagementTop5(),
+      getFavoritePosts(),
+      getBuzzPatternBlock(),
+    ])
+    const engagementBlock = buildEngagementPromptBlock(top5, favorites)
 
     const seed = {
       emotion: emotion || randomSeed().emotion,
@@ -310,7 +332,10 @@ export async function POST(req: NextRequest) {
       ? `\n【過去の投稿（同じテーマ・同じ商品・同じ書き出し・同じ構成は使わないこと）】\n${(existingPosts as string[]).map((p: string, i: number) => `${i + 1}. ${p.slice(0, 100)}`).join('\n')}\n`
       : ''
 
-    const userPrompt = `以下の条件でX投稿文を1つ作成してください。
+    const engagementSection = engagementBlock ? `\n${engagementBlock}\n` : ''
+    const buzzSection = buzzBlock ? `\n${buzzBlock}\n` : ''
+
+    const buildPrompt = () => `以下の条件でX投稿文を1つ作成してください。
 
 投稿タイプ: ${postType}
 タイプの説明: ${description}
@@ -322,7 +347,7 @@ ${additionalContext ? `追加コンテキスト: ${additionalContext}` : ''}
 - 場面設定：${seed.scene}
 - 語りの対象：${seed.target}
 この切り口に合わせて、マサキのリアルな一人称で投稿を書いてください。
-${existingExcerpts}
+${existingExcerpts}${engagementSection}${buzzSection}
 ${formatType === 'short'
   ? `形式: 短文投稿（140文字程度）
 - タイムラインでパッと読める長さ
@@ -344,16 +369,48 @@ ${formatType === 'short'
 - ハッシュタグは最大1個（つけなくてもよい）
 - 投稿文のみ出力（説明不要）`
 
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: formatType === 'short' ? 400 : formatType === '長文投稿' ? 4000 : 2000,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userPrompt }],
+    // Quality-gated generation: up to 3 attempts
+    let bestContent = ''
+    let bestQuality: import('@/lib/quality-gate').QualityScore | null = null
+    let qualityPassed = false
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const content = await callAI(buildPrompt(), formatType)
+      if (!content) continue
+
+      const quality = await scorePost(content)
+
+      if (!quality) {
+        bestContent = content
+        break
+      }
+
+      if (quality.passed) {
+        bestContent = content
+        bestQuality = quality
+        qualityPassed = true
+        break
+      }
+
+      if (!bestQuality || quality.average > bestQuality.average) {
+        bestContent = content
+        bestQuality = quality
+      }
+    }
+
+    if (!bestContent) {
+      bestContent = generateTemplate(postType, keywords)
+    }
+
+    return NextResponse.json({
+      content: bestContent,
+      generated: true,
+      seed,
+      qualityScore: bestQuality?.average ?? null,
+      qualityDetail: bestQuality?.scores ?? null,
+      qualityFeedback: bestQuality?.feedback ?? null,
+      qualityPassed,
     })
-
-    const content = message.content[0].type === 'text' ? message.content[0].text : ''
-
-    return NextResponse.json({ content, generated: true, seed })
   } catch (error) {
     console.error(error)
     return NextResponse.json({ error: 'AI生成に失敗しました', details: String(error) }, { status: 500 })
