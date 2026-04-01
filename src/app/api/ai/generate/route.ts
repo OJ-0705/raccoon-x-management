@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { prisma } from '@/lib/prisma'
 import { scorePost, getEngagementTop5, getFavoritePosts, buildEngagementPromptBlock, getBuzzPatternBlock } from '@/lib/quality-gate'
 
 const client = new Anthropic({
@@ -23,7 +24,9 @@ const POST_TYPE_DESCRIPTIONS: Record<string, string> = {
   'その他': '自由形式。低脂質・脂質制限に関連するテーマ。マサキの一人称で。',
 }
 
-const SYSTEM_PROMPT = `あなたは「らくーん🍊」ことマサキとして、X（旧Twitter）の投稿文を書いています。
+// Legacy system prompt kept for reference but no longer injected directly.
+// The active prompt is built by buildSystemPrompt() using DB samples.
+const _LEGACY_SYSTEM_PROMPT_START = `あなたは「らくーん🍊」ことマサキとして、X（旧Twitter）の投稿文を書いています。
 マサキは動画制作会社の代表で、遺伝子検査で「洋なし型（脂質で太りやすいタイプ）」と判明してから脂質制限に目覚めた人物です。
 
 ━━━━━━━━━━━━━━━━━━━━━━━
@@ -274,6 +277,38 @@ sample_10: 脂質制限始めてから変わったこと。コンビニで商品
 
 【重要】上記サンプルの内容をそのまま使わないこと。トーンとスタイルの参考のみ。`
 
+// ── Sample-based system prompt ───────────────────────────────────────────────
+function buildSystemPrompt(samplePostsText: string): string {
+  return `
+あなたは「らくーん🍊」というX（旧Twitter）アカウントの投稿を生成するAIです。
+
+## キャラクター
+- 一人称：「僕」
+- 性格：おとなしくユーモアがある男性
+- 口調：敬語8割・タメ口2割
+- スタンス：脂質制限を「楽しいゲーム・宝探し」として捉えている
+- 遺伝子検査で洋なし型（脂質で太るタイプ）と判明した当事者
+
+## 投稿の作り方（これだけ守って）
+1. 1文目で「何それ？」「気になる！」と止まらせる
+2. 具体的な脂質の数字を必ず入れる（脂質○g、○倍の差）
+3. 知識提供8割＋マサキの体験2割
+4. 1文ごとに改行する
+5. ハッシュタグは原則なし
+
+## 絶対NG
+- 薬機法違反表現（「脂肪燃焼」「代謝アップで痩せる」等）
+- 断定的な効果表現（「確実に痩せる」「必ず効果がある」等）
+- 「。」は使わない
+- リスト形式（①②③）や「○○5選」のまとめ形式
+
+## 以下のサンプル投稿の【トーン・構造・温度感】を真似して、別のテーマで新しい投稿を書いてください。
+サンプルの内容をそのままコピーしないこと。同じ「書き方」で別の情報を伝えること。
+
+${samplePostsText}
+`.trim()
+}
+
 const EMOTIONS = ['興奮', '困惑', '怒り', '発見', '落胆', '喜び'] as const
 const SCENES = ['コンビニで', '飲み会で', '自宅で', 'スーパーで', '外食で', '実家で'] as const
 const TARGETS = ['過去の自分に向けて', '読者に向けて', '仲間に向けて', '未来の自分に向けて'] as const
@@ -289,11 +324,12 @@ function randomSeed() {
 async function callAI(
   userPrompt: string,
   formatType: string,
+  systemPrompt: string,
 ): Promise<string> {
   const message = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: formatType === 'short' ? 400 : formatType === '長文投稿' ? 4000 : 2000,
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   })
   return message.content[0].type === 'text' ? message.content[0].text : ''
@@ -310,6 +346,13 @@ export async function POST(req: NextRequest) {
         generated: false,
       })
     }
+
+    // Fetch sample posts from DB for system prompt
+    const samples = await prisma.samplePost.findMany({ orderBy: { number: 'asc' } })
+    const samplePostsText = samples.length > 0
+      ? samples.map(s => `### サンプル${s.number}\n${s.text}`).join('\n\n---\n\n')
+      : '（サンプルなし）'
+    const activeSystemPrompt = buildSystemPrompt(samplePostsText)
 
     // Fetch engagement TOP5 + favorites + buzz patterns for prompt injection
     const [top5, favorites, buzzBlock] = await Promise.all([
@@ -335,39 +378,31 @@ export async function POST(req: NextRequest) {
     const engagementSection = engagementBlock ? `\n${engagementBlock}\n` : ''
     const buzzSection = buzzBlock ? `\n${buzzBlock}\n` : ''
 
-    const buildPrompt = () => `以下の条件でX投稿文を1つ作成してください。
+    const buildPrompt = () => `脂質制限に関する新しいX投稿を1件生成してください。
 
-投稿タイプ: ${postType}
-タイプの説明: ${description}
-${keywordStr}
-${additionalContext ? `追加コンテキスト: ${additionalContext}` : ''}
-
-今回の投稿の切り口：
-- 感情トーン：${seed.emotion}
-- 場面設定：${seed.scene}
-- 語りの対象：${seed.target}
-この切り口に合わせて、マサキのリアルな一人称で投稿を書いてください。
+条件：
+- サンプル投稿と同じトーン・構造・温度感で書く
+- サンプルの内容をコピーしない。別のテーマで新しい情報を伝える
+- 1文目は「何それ？」「気になる！」と思わせるフックにする
+- 具体的な脂質の数字を含める
+- 投稿本文のみを出力する（説明や前置きは不要）
+${keywordStr ? `\nテーマのヒント: ${keywordStr}` : ''}
+${additionalContext ? `\n追加コンテキスト: ${additionalContext}` : ''}
 ${existingExcerpts}${engagementSection}${buzzSection}
 ${formatType === 'short'
   ? `形式: 短文投稿（140文字程度）
 - タイムラインでパッと読める長さ
 - 1つの気づき・発見・感情だけを書く
-- 余計な説明は不要。感情や体験の一言
 - 必ず140文字以内に収める`
   : formatType === '長文投稿'
   ? `形式: 長文投稿（X Premium対応・1,000〜3,000文字推奨）
 - 詳細な解説・体験談を含むコラム形式
-- マサキの実体験を必ず2つ以上織り込む
-- 箇条書きリストは使わない`
+- マサキの実体験を必ず2つ以上織り込む`
   : `形式: 標準投稿（500〜1,500文字推奨）
 - 冒頭140文字以内で続きを読ませるフック
 - 本文で体験・数値・感情をしっかり語る`}
 
-【絶対禁止】
-- ①②③のリスト形式
-- 「○○5選」「○○3選」のまとめ形式
-- ハッシュタグは最大1個（つけなくてもよい）
-- 投稿文のみ出力（説明不要）`
+投稿文のみを出力すること（説明や前置き不要）`
 
     // Quality-gated generation: up to 3 attempts
     let bestContent = ''
@@ -375,7 +410,7 @@ ${formatType === 'short'
     let qualityPassed = false
 
     for (let attempt = 0; attempt < 3; attempt++) {
-      const content = await callAI(buildPrompt(), formatType)
+      const content = await callAI(buildPrompt(), formatType, activeSystemPrompt)
       if (!content) continue
 
       const quality = await scorePost(content)

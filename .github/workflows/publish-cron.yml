@@ -4,6 +4,8 @@ on:
   schedule:
     # Run every 5 minutes
     - cron: '*/5 * * * *'
+    # Sync Notion samples daily at 21:00 UTC (06:00 JST)
+    - cron: '0 21 * * *'
   workflow_dispatch:  # Allow manual trigger from GitHub UI
 
 jobs:
@@ -22,3 +24,18 @@ jobs:
             echo "Error: Unexpected HTTP status $RESPONSE"
             exit 1
           fi
+
+  notion-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    # Only run at 21:00 UTC (not every 5 minutes)
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && startsWith(github.event.schedule, '0 21'))
+    steps:
+      - name: Sync Notion samples
+        run: |
+          RESPONSE=$(curl -s -o /tmp/notion-response.json -w "%{http_code}" \
+            -X POST \
+            "https://raccoon-x-management.vercel.app/api/notion-sync" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_PASSWORD }}")
+          echo "HTTP Status: $RESPONSE"
+          cat /tmp/notion-response.json

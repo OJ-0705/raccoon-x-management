@@ -102,3 +102,10 @@ model Settings {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+model SamplePost {
+  id        Int      @id @default(autoincrement())
+  number    Int      @unique
+  text      String
+  updatedAt DateTime @updatedAt
+}
