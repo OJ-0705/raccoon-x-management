@@ -385,7 +385,7 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
               スケジュール設定
             </button>
           )}
-          {post.status === '予約済み' && (
+          {post.status !== '投稿済み' && (
             <button
               onClick={handlePublishNow}
               disabled={publishing}

@@ -104,15 +104,18 @@ function PostsContent() {
           <p className="text-slate-400 text-sm mt-1">全{total}件</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={runCron}
-            disabled={cronRunning}
-            className="px-4 py-2 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
-            style={{ background: cronRunning ? 'rgba(255,255,255,0.1)' : 'rgba(59,130,246,0.7)' }}
-            title="予約時刻を過ぎた投稿を今すぐ送信"
-          >
-            {cronRunning ? '⏳ 実行中...' : '🚀 予約実行'}
-          </button>
+          <div className="flex flex-col items-center gap-0.5">
+            <button
+              onClick={runCron}
+              disabled={cronRunning}
+              className="px-4 py-2 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+              style={{ background: cronRunning ? 'rgba(255,255,255,0.1)' : 'rgba(59,130,246,0.7)' }}
+              title="予約時刻を過ぎた予約済み投稿を今すぐ送信"
+            >
+              {cronRunning ? '⏳ 実行中...' : '🚀 手動実行'}
+            </button>
+            <span className="text-[10px] text-slate-500">予約時刻を過ぎた投稿を今すぐ実行</span>
+          </div>
           <Link
             href="/posts/new"
             className="px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-sm font-medium transition-colors"
