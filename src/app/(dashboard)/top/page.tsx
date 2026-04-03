@@ -11,6 +11,7 @@ interface Post {
   status: string
   scheduledAt?: string | null
   createdAt: string
+  imageUrls?: string | null
 }
 
 const POST_TYPE_COLORS: Record<string, string> = {
@@ -141,6 +142,9 @@ export default function TopPage() {
   const [saving, setSaving] = useState(false)
   const [rewriteInstruction, setRewriteInstruction] = useState('')
   const [rewriting, setRewriting] = useState(false)
+  const [editMediaUrls, setEditMediaUrls] = useState<string[]>([])
+  const [editUploading, setEditUploading] = useState(false)
+  const editFileInputRef = useRef<HTMLInputElement>(null)
 
   const loadPosts = useCallback(async () => {
     try {
@@ -202,6 +206,7 @@ export default function TopPage() {
     setEditPost(post)
     setEditContent(post.content)
     setOriginalContent(post.content)
+    try { setEditMediaUrls(post.imageUrls ? JSON.parse(post.imageUrls) : []) } catch { setEditMediaUrls([]) }
     // Pre-fill with proposed next schedule
     if (post.scheduledAt) {
       const d = new Date(post.scheduledAt)
@@ -210,6 +215,26 @@ export default function TopPage() {
     } else {
       setEditScheduledAt(proposeNextSchedule(posts))
     }
+  }
+
+  const handleEditFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    const remaining = 4 - editMediaUrls.length
+    const filesToUpload = Array.from(files).slice(0, remaining)
+    setEditUploading(true)
+    for (const file of filesToUpload) {
+      const formData = new FormData()
+      formData.append('file', file)
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: formData })
+        const data = await res.json()
+        if (data.url) setEditMediaUrls(prev => [...prev, data.url])
+        else alert(data.error || 'アップロードに失敗しました')
+      } catch { alert('アップロードに失敗しました') }
+    }
+    setEditUploading(false)
+    e.target.value = ''
   }
 
   const handleRegenerate = async (post: Post) => {
@@ -269,7 +294,7 @@ export default function TopPage() {
       const res = await fetch(`/api/posts/${editPost.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: editContent, scheduledAt: scheduledAtISO }),
+        body: JSON.stringify({ content: editContent, scheduledAt: scheduledAtISO, imageUrls: editMediaUrls.length ? editMediaUrls : null }),
       })
       if (res.ok) {
         // Refetch from server FIRST (DB is confirmed updated after PATCH),
@@ -468,6 +493,50 @@ export default function TopPage() {
               <span className={`text-xs ${editContent.length < 500 ? 'text-yellow-500' : editContent.length <= 1500 ? 'text-green-400' : editContent.length > 25000 ? 'text-red-400' : 'text-slate-500'}`}>
                 {editContent.length < 500 ? `推奨500〜1,500文字（あと${500 - editContent.length}文字）` : editContent.length <= 1500 ? '✅ 推奨範囲内' : `${editContent.length}文字`}
               </span>
+            </div>
+
+            {/* Media Attachment */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-slate-400 font-medium">📷 画像/動画</span>
+                <span className="text-xs text-slate-600">残り{4 - editMediaUrls.length}枚</span>
+              </div>
+              {editMediaUrls.length > 0 && (
+                <div className="flex gap-2 mb-2 flex-wrap">
+                  {editMediaUrls.map((url, i) => (
+                    <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0" style={{ border: '1px solid rgba(255,255,255,0.12)' }}>
+                      {/\.(mp4|mov|webm)(\?|$)/i.test(url) ? (
+                        <div className="w-full h-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.07)' }}>
+                          <span className="text-xl">🎬</span>
+                        </div>
+                      ) : (
+                        <img src={url} alt="" className="w-full h-full object-cover" />
+                      )}
+                      <button
+                        onClick={() => setEditMediaUrls(prev => prev.filter((_, idx) => idx !== i))}
+                        className="absolute top-0.5 right-0.5 w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold text-white"
+                        style={{ background: 'rgba(0,0,0,0.7)' }}
+                      >✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <input
+                type="file"
+                ref={editFileInputRef}
+                onChange={handleEditFileSelect}
+                accept="image/jpeg,image/png,image/gif,image/webp,video/mp4"
+                multiple
+                className="hidden"
+              />
+              <button
+                onClick={() => editFileInputRef.current?.click()}
+                disabled={editMediaUrls.length >= 4 || editUploading}
+                className="w-full py-2 rounded-xl text-xs font-medium transition-colors disabled:opacity-40"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}
+              >
+                {editUploading ? '⏳ アップロード中...' : `📷 画像/動画を追加（残り${4 - editMediaUrls.length}枚）`}
+              </button>
             </div>
 
             {/* DateTime picker */}

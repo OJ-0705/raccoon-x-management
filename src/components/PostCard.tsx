@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import ScheduleModal from './ScheduleModal'
 
 interface Post {
@@ -49,6 +49,9 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
   const [editPlatform, setEditPlatform] = useState(post.platform || 'both')
   const [editNextSlot, setEditNextSlot] = useState('')
   const [editSaving, setEditSaving] = useState(false)
+  const [editMediaUrls, setEditMediaUrls] = useState<string[]>([])
+  const [editUploading, setEditUploading] = useState(false)
+  const editFileInputRef = useRef<HTMLInputElement>(null)
   const [rewriteInstruction, setRewriteInstruction] = useState('')
   const [rewriting, setRewriting] = useState(false)
   const [showImprove, setShowImprove] = useState(false)
@@ -78,9 +81,30 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
   const formatDate = (d?: string | null) =>
     d ? new Date(d).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null
 
+  const handleEditFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    const remaining = 4 - editMediaUrls.length
+    const filesToUpload = Array.from(files).slice(0, remaining)
+    setEditUploading(true)
+    for (const file of filesToUpload) {
+      const formData = new FormData()
+      formData.append('file', file)
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: formData })
+        const data = await res.json()
+        if (data.url) setEditMediaUrls(prev => [...prev, data.url])
+        else alert(data.error || 'アップロードに失敗しました')
+      } catch { alert('アップロードに失敗しました') }
+    }
+    setEditUploading(false)
+    e.target.value = ''
+  }
+
   const openEditModal = async () => {
     setEditContent(post.content)
     setEditPlatform(post.platform || 'both')
+    try { setEditMediaUrls(post.imageUrls ? JSON.parse(post.imageUrls) : []) } catch { setEditMediaUrls([]) }
     if (post.scheduledAt) {
       const d = new Date(post.scheduledAt)
       const pad = (n: number) => n.toString().padStart(2, '0')
@@ -133,7 +157,7 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
       await fetch(`/api/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: editContent, scheduledAt: editScheduledAt ? new Date(editScheduledAt).toISOString() : null, platform: editPlatform }),
+        body: JSON.stringify({ content: editContent, scheduledAt: editScheduledAt ? new Date(editScheduledAt).toISOString() : null, platform: editPlatform, imageUrls: editMediaUrls.length ? editMediaUrls : null }),
       })
       onRefresh?.()
       setShowEdit(false)
@@ -525,6 +549,50 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Media Attachment */}
+            <div className="mb-5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-slate-400 font-medium">📷 画像/動画</span>
+                <span className="text-xs text-slate-600">残り{4 - editMediaUrls.length}枚</span>
+              </div>
+              {editMediaUrls.length > 0 && (
+                <div className="flex gap-2 mb-2 flex-wrap">
+                  {editMediaUrls.map((url, i) => (
+                    <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0" style={{ border: '1px solid rgba(255,255,255,0.12)' }}>
+                      {/\.(mp4|mov|webm)(\?|$)/i.test(url) ? (
+                        <div className="w-full h-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.07)' }}>
+                          <span className="text-xl">🎬</span>
+                        </div>
+                      ) : (
+                        <img src={url} alt="" className="w-full h-full object-cover" />
+                      )}
+                      <button
+                        onClick={() => setEditMediaUrls(prev => prev.filter((_, idx) => idx !== i))}
+                        className="absolute top-0.5 right-0.5 w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold text-white"
+                        style={{ background: 'rgba(0,0,0,0.7)' }}
+                      >✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <input
+                type="file"
+                ref={editFileInputRef}
+                onChange={handleEditFileSelect}
+                accept="image/jpeg,image/png,image/gif,image/webp,video/mp4"
+                multiple
+                className="hidden"
+              />
+              <button
+                onClick={() => editFileInputRef.current?.click()}
+                disabled={editMediaUrls.length >= 4 || editUploading}
+                className="w-full py-2 rounded-xl text-xs font-medium transition-colors disabled:opacity-40"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}
+              >
+                {editUploading ? '⏳ アップロード中...' : `📷 画像/動画を追加（残り${4 - editMediaUrls.length}枚）`}
+              </button>
             </div>
 
             {/* AI Rewrite */}
