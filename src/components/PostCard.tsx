@@ -52,28 +52,13 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
   const [editMediaUrls, setEditMediaUrls] = useState<string[]>([])
   const [editUploading, setEditUploading] = useState(false)
   const editFileInputRef = useRef<HTMLInputElement>(null)
-  const [rewriteInstruction, setRewriteInstruction] = useState('')
-  const [rewriting, setRewriting] = useState(false)
-  const [showImprove, setShowImprove] = useState(false)
-  const [improveVariants, setImproveVariants] = useState<string[]>([])
-  const [improving, setImproving] = useState(false)
-  const [selectedVariant, setSelectedVariant] = useState<string | null>(null)
-  const [savingVariant, setSavingVariant] = useState(false)
   const [platform, setPlatform] = useState(post.platform || 'both')
   const [updatingPlatform, setUpdatingPlatform] = useState(false)
-  // Score (engagement prediction)
-  const [score, setScore] = useState<{ score: number; predictedEngagement: number; feedback: string } | null>(null)
-  const [scoring, setScoring] = useState(false)
-  const [showScore, setShowScore] = useState(false)
   // Quality score (7-item)
   const [showQualityDetail, setShowQualityDetail] = useState(false)
   // isFavorite
   const [isFavorite, setIsFavorite] = useState(post.isFavorite ?? false)
   const [togglingFav, setTogglingFav] = useState(false)
-  // A/B test
-  const [showAB, setShowAB] = useState(false)
-  const [abLoading, setAbLoading] = useState(false)
-  const [abResult, setAbResult] = useState<{ groupId: string; postA: Post; postB: Post } | null>(null)
 
   const typeColor = POST_TYPE_COLORS[post.postType] || '#6B7280'
   const canSchedule = post.status === '下書き' || post.status === '承認待ち'
@@ -138,19 +123,6 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
     }
   }
 
-  const handleRewrite = async () => {
-    if (!rewriteInstruction.trim()) return
-    setRewriting(true)
-    try {
-      const res = await fetch('/api/ai/rewrite', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: editContent, instruction: rewriteInstruction, postType: post.postType, formatType: post.formatType }),
-      })
-      const data = await res.json()
-      if (data.result) { setEditContent(data.result); setRewriteInstruction('') }
-    } finally { setRewriting(false) }
-  }
-
   const handleEditSave = async () => {
     setEditSaving(true)
     try {
@@ -174,60 +146,6 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
       })
       setPlatform(next)
     } finally { setUpdatingPlatform(false) }
-  }
-
-  const handleImprove = async () => {
-    setShowImprove(true)
-    if (improveVariants.length > 0) return
-    setImproving(true)
-    try {
-      const res = await fetch('/api/ai/improve', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: post.content, postType: post.postType, formatType: post.formatType }),
-      })
-      const data = await res.json()
-      setImproveVariants(data.variants || [])
-    } finally { setImproving(false) }
-  }
-
-  const applyVariant = async (content: string) => {
-    setSavingVariant(true)
-    try {
-      await fetch(`/api/posts/${post.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
-      })
-      onRefresh?.()
-      setShowImprove(false)
-    } finally { setSavingVariant(false) }
-  }
-
-  const handleScore = async () => {
-    setShowScore(true)
-    if (score) return
-    setScoring(true)
-    try {
-      const res = await fetch('/api/ai/score', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: post.content, postType: post.postType, formatType: post.formatType }),
-      })
-      const data = await res.json()
-      setScore(data)
-    } finally { setScoring(false) }
-  }
-
-  const handleABTest = async () => {
-    setShowAB(true)
-    if (abResult) return
-    setAbLoading(true)
-    try {
-      const res = await fetch('/api/ai/ab-test', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: post.content, postType: post.postType, scheduledAt: post.scheduledAt }),
-      })
-      const data = await res.json()
-      setAbResult(data)
-    } finally { setAbLoading(false) }
   }
 
   const toggleFavorite = async () => {
@@ -258,11 +176,6 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
       setPublishing(false)
     }
   }
-
-  const scoreColor = !score ? '#6b7280'
-    : score.score >= 80 ? '#10b981'
-    : score.score >= 60 ? '#f97316'
-    : '#ef4444'
 
   return (
     <>
@@ -406,22 +319,6 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
           </div>
         )}
 
-        {/* Score display */}
-        {showScore && score && (
-          <div className="mb-3 rounded-xl p-3" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.07)' }}>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold" style={{ color: scoreColor }}>スコア {score.score}</span>
-                <div className="w-24 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
-                  <div className="h-full rounded-full" style={{ width: `${score.score}%`, backgroundColor: scoreColor }} />
-                </div>
-              </div>
-              <span className="text-sm text-slate-400">予測EG: {score.predictedEngagement.toFixed(1)}%</span>
-            </div>
-            <p className="text-xs text-slate-400">{score.feedback}</p>
-          </div>
-        )}
-
         {/* Actions */}
         <div className="flex items-center gap-2 pt-2 flex-wrap" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           <button onClick={openEditModal} className="text-sm px-3 py-1.5 rounded-xl text-slate-300 hover:text-white transition-all" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -440,19 +337,6 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
               style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#86efac' }}
             >
               {publishing ? '投稿中...' : '🚀 今すぐ投稿'}
-            </button>
-          )}
-          <button onClick={handleImprove} className="text-sm px-3 py-1.5 rounded-xl text-purple-300 hover:text-purple-200 transition-all" style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)' }}>
-            ✨ AI改善
-          </button>
-          {canSchedule && (
-            <button onClick={handleScore} className="text-sm px-3 py-1.5 rounded-xl transition-all" style={{ background: 'rgba(6,182,212,0.12)', border: '1px solid rgba(6,182,212,0.22)', color: '#67e8f9' }}>
-              🎯 スコア診断
-            </button>
-          )}
-          {canSchedule && (
-            <button onClick={handleABTest} className="text-sm px-3 py-1.5 rounded-xl transition-all" style={{ background: 'rgba(234,179,8,0.12)', border: '1px solid rgba(234,179,8,0.22)', color: '#fde047' }}>
-              🆎 A/Bテスト
             </button>
           )}
           <button
@@ -595,30 +479,6 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
               </button>
             </div>
 
-            {/* AI Rewrite */}
-            <div className="mb-5 rounded-xl p-3" style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)' }}>
-              <p className="text-xs text-purple-300 font-medium mb-2">🤖 AIに書き換えを依頼</p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={rewriteInstruction}
-                  onChange={e => setRewriteInstruction(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleRewrite()}
-                  placeholder="例: もっと短く / 数値を強調 / フックを強くして"
-                  className="flex-1 px-3 py-2 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none"
-                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
-                />
-                <button
-                  onClick={handleRewrite}
-                  disabled={rewriting || !rewriteInstruction.trim()}
-                  className="px-3 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition-all whitespace-nowrap"
-                  style={{ background: 'rgba(139,92,246,0.4)', border: '1px solid rgba(139,92,246,0.5)' }}
-                >
-                  {rewriting ? '...' : '書き換え'}
-                </button>
-              </div>
-            </div>
-
             <div className="flex gap-2">
               <button onClick={() => setShowEdit(false)} className="flex-1 py-2.5 rounded-xl text-sm text-slate-300 transition-all" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 キャンセル
@@ -637,68 +497,6 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
           onClose={() => setShowScheduleModal(false)} onScheduled={() => onRefresh?.()} />
       )}
 
-      {/* AI Improve Modal */}
-      {showImprove && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowImprove(false)}>
-          <div className="w-full max-w-2xl rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto" style={{ background: 'rgba(8,9,18,0.95)', backdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.12)' }} onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-white mb-1">✨ AI改善提案</h3>
-            <p className="text-sm text-slate-400 mb-4">採用したいバリアントを選んで「適用する」を押してください</p>
-            {improving ? (
-              <div className="text-center py-8 text-slate-400">AIが改善中...</div>
-            ) : (
-              <div className="space-y-4">
-                {improveVariants.map((v, i) => (
-                  <div key={i} className={`rounded-xl p-4 cursor-pointer transition-all ${selectedVariant === v ? 'border-purple-500' : 'hover:border-white/20'}`}
-                    style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${selectedVariant === v ? '#8b5cf6' : 'rgba(255,255,255,0.08)'}` }}
-                    onClick={() => setSelectedVariant(v)}>
-                    <p className="text-sm text-purple-400 font-bold mb-2">バリアント {i + 1}</p>
-                    <p className="text-sm text-slate-200 whitespace-pre-wrap">{v}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowImprove(false)} className="flex-1 py-2.5 rounded-xl text-sm text-slate-300" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                閉じる
-              </button>
-              {selectedVariant && (
-                <button onClick={() => applyVariant(selectedVariant)} disabled={savingVariant} className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-all">
-                  {savingVariant ? '適用中...' : '✅ 適用する'}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* A/B Test Modal */}
-      {showAB && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowAB(false)}>
-          <div className="w-full max-w-2xl rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto" style={{ background: 'rgba(8,9,18,0.95)', backdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.12)' }} onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-white mb-1">🆎 A/Bテスト生成</h3>
-            <p className="text-sm text-slate-400 mb-4">2つのバリアントを自動生成して承認待ちキューに追加します</p>
-            {abLoading ? (
-              <div className="text-center py-8 text-slate-400">AIがバリアントを生成中...</div>
-            ) : abResult ? (
-              <div className="space-y-4">
-                {[{ label: 'A — フック強化型', content: abResult.postA.content }, { label: 'B — 共感訴求型', content: abResult.postB.content }].map((v, i) => (
-                  <div key={i} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                    <p className="text-sm font-bold mb-2" style={{ color: i === 0 ? '#67e8f9' : '#86efac' }}>{v.label}</p>
-                    <p className="text-sm text-slate-200 whitespace-pre-wrap">{v.content}</p>
-                  </div>
-                ))}
-                <div className="rounded-xl p-3" style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)' }}>
-                  <p className="text-sm text-yellow-300">✅ 承認待ちキューに追加されました。投稿後のエンゲージメントを比較してください。</p>
-                  <p className="text-xs text-slate-500 mt-1">グループID: {abResult.groupId.slice(0, 8)}...</p>
-                </div>
-              </div>
-            ) : null}
-            <button onClick={() => setShowAB(false)} className="w-full mt-4 py-2.5 rounded-xl text-sm text-slate-300" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}>
-              閉じる
-            </button>
-          </div>
-        </div>
-      )}
     </>
   )
 }

@@ -133,15 +133,12 @@ export default function TopPage() {
   const [generating, setGenerating] = useState(false)
   const [schedulePost, setSchedulePost] = useState<Post | null>(null)
   const [approving, setApproving] = useState<string | null>(null)
-  const [regenLoading, setRegenLoading] = useState<string | null>(null)
   // Edit modal state
   const [editPost, setEditPost] = useState<Post | null>(null)
   const [editContent, setEditContent] = useState('')
   const [originalContent, setOriginalContent] = useState('')
   const [editScheduledAt, setEditScheduledAt] = useState('')
   const [saving, setSaving] = useState(false)
-  const [rewriteInstruction, setRewriteInstruction] = useState('')
-  const [rewriting, setRewriting] = useState(false)
   const [editMediaUrls, setEditMediaUrls] = useState<string[]>([])
   const [editUploading, setEditUploading] = useState(false)
   const editFileInputRef = useRef<HTMLInputElement>(null)
@@ -237,55 +234,6 @@ export default function TopPage() {
     e.target.value = ''
   }
 
-  const handleRegenerate = async (post: Post) => {
-    setRegenLoading(post.id)
-    try {
-      const res = await fetch('/api/ai/rewrite', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: post.content,
-          postType: post.postType,
-          instruction: `以下のルールでリライトしてください：
-1. 500〜1,500文字に調整する（X Premium長文投稿）
-2. 冒頭140文字で興味を引くフックを入れる（1文目の文末に「。」を入れない）
-3. 脂質データは具体的に数値で示す（例：脂質2.1g、カロリー89kcal）
-4. 絵文字は3〜5個程度（冒頭と要所に配置）
-5. ハッシュタグは原則つけない（つけても最大1個）
-6. らくーん🍊のトーン：親しみやすく、ユーモアを交えつつ、データも示す
-7. アカウントテーマ：遺伝子検査で洋梨型とわかった脂質と戦う1人会社社長が、既製品だけで低脂質おつまみをレビュー
-8. 読者への問いかけや共感を誘う表現を入れる`,
-        }),
-      })
-      const data = await res.json()
-      if (data.result) {
-        // Open edit modal with regenerated content for user review
-        setOriginalContent(post.content)
-        setEditContent(data.result)
-        setEditPost(post)
-        if (post.scheduledAt) {
-          const d = new Date(post.scheduledAt)
-          const pad = (n: number) => n.toString().padStart(2, '0')
-          setEditScheduledAt(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`)
-        } else {
-          setEditScheduledAt(proposeNextSchedule(posts))
-        }
-      }
-    } finally { setRegenLoading(null) }
-  }
-
-  const handleRewrite = async () => {
-    if (!rewriteInstruction.trim() || !editPost) return
-    setRewriting(true)
-    try {
-      const res = await fetch('/api/ai/rewrite', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: editContent, instruction: rewriteInstruction, postType: editPost.postType }),
-      })
-      const data = await res.json()
-      if (data.result) { setEditContent(data.result); setRewriteInstruction('') }
-    } finally { setRewriting(false) }
-  }
-
   const handleSave = async () => {
     if (!editPost) return
     setSaving(true)
@@ -351,7 +299,6 @@ export default function TopPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {posts.map((post, i) => {
             const typeColor = POST_TYPE_COLORS[post.postType] || '#6B7280'
-            const isRegen = regenLoading === post.id
             const displayText = stripFirstLinePeriod(post.content)
             return (
               <div key={post.id} className="rounded-2xl overflow-hidden flex flex-col min-h-[450px]" style={glass}>
@@ -403,14 +350,6 @@ export default function TopPage() {
                     title="推奨時刻のまま即承認"
                   >
                     {approving === post.id ? '...' : '⚡ 即承認'}
-                  </button>
-                  <button
-                    onClick={() => handleRegenerate(post)}
-                    disabled={isRegen}
-                    className="col-span-2 py-2 disabled:opacity-50 rounded-xl text-xs font-medium transition-all"
-                    style={{ background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.25)', color: '#c4b5fd' }}
-                  >
-                    {isRegen ? '再生成中...' : '🔄 再生成（500〜1,500文字）'}
                   </button>
                   <button
                     onClick={() => handleReject(post.id)}
@@ -554,30 +493,6 @@ export default function TopPage() {
               ) : (
                 <p className="text-[11px] text-slate-500 mt-1">最適投稿時間: 🌅 朝7:00 / 🌞 昼12:00 / 🌙 夜21:00（木曜21時は特に効果的）</p>
               )}
-            </div>
-
-            {/* AI Rewrite */}
-            <div className="mb-4 rounded-xl p-3" style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)' }}>
-              <p className="text-xs text-purple-300 font-medium mb-2">🤖 AIに書き換えを依頼</p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={rewriteInstruction}
-                  onChange={e => setRewriteInstruction(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleRewrite()}
-                  placeholder="例: もっと短く / 数値を強調 / フックを強くして"
-                  className="flex-1 px-3 py-2 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none"
-                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
-                />
-                <button
-                  onClick={handleRewrite}
-                  disabled={rewriting || !rewriteInstruction.trim()}
-                  className="px-3 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition-all whitespace-nowrap"
-                  style={{ background: 'rgba(139,92,246,0.4)', border: '1px solid rgba(139,92,246,0.5)' }}
-                >
-                  {rewriting ? '...' : '書き換え'}
-                </button>
-              </div>
             </div>
 
             <div className="flex gap-2">

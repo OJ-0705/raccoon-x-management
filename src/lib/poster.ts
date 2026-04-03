@@ -79,10 +79,18 @@ function uint8ToBase64(bytes: Uint8Array): string {
  */
 async function uploadImageToX(imageUrl: string, creds: XCredentials): Promise<string | null> {
   try {
-    const imgRes = await fetch(imageUrl)
-    if (!imgRes.ok) { console.error('[poster] Failed to fetch image:', imageUrl); return null }
-    const buffer = await imgRes.arrayBuffer()
-    const base64 = uint8ToBase64(new Uint8Array(buffer))
+    let base64: string
+    if (imageUrl.startsWith('data:')) {
+      // Base64 data URL stored in DB — extract base64 part directly
+      const comma = imageUrl.indexOf(',')
+      if (comma === -1) { console.error('[poster] Invalid data URL'); return null }
+      base64 = imageUrl.slice(comma + 1)
+    } else {
+      const imgRes = await fetch(imageUrl)
+      if (!imgRes.ok) { console.error('[poster] Failed to fetch image:', imageUrl); return null }
+      const buffer = await imgRes.arrayBuffer()
+      base64 = uint8ToBase64(new Uint8Array(buffer))
+    }
 
     const uploadUrl = 'https://upload.twitter.com/1.1/media/upload.json'
     const bodyParams = { media_data: base64 }
@@ -189,6 +197,7 @@ async function uploadVideoToX(videoUrl: string, creds: XCredentials): Promise<st
 }
 
 function isVideo(url: string): boolean {
+  if (url.startsWith('data:')) return url.startsWith('data:video/')
   return /\.(mp4|mov|webm)(\?|$)/i.test(url)
 }
 
@@ -353,8 +362,10 @@ export async function postToThreads(content: string, mediaUrls?: string[]): Prom
   try {
     let creationId: string
 
-    const images = (mediaUrls || []).filter(u => !isVideo(u))
-    const videos = (mediaUrls || []).filter(u => isVideo(u))
+    // Threads API requires public HTTP URLs — skip base64 data URLs
+    const publicUrls = (mediaUrls || []).filter(u => !u.startsWith('data:'))
+    const images = publicUrls.filter(u => !isVideo(u))
+    const videos = publicUrls.filter(u => isVideo(u))
 
     if (videos.length > 0) {
       // Single video post (video takes priority, ignoring images per X/Threads rules)
