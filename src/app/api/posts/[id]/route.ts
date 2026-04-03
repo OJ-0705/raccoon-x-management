@@ -23,6 +23,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (body.content !== undefined) data.content = body.content
     if (body.platform !== undefined) data.platform = body.platform
     if (body.isFavorite !== undefined) data.isFavorite = body.isFavorite
+    if (body.imageUrls !== undefined) data.imageUrls = body.imageUrls ? JSON.stringify(body.imageUrls) : null
     const post = await prisma.post.update({ where: { id }, data })
     return NextResponse.json(post)
   } catch (error) {

@@ -16,14 +16,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     let xPostId: string | null = null
     let threadsPostId: string | null = null
 
+    let mediaUrls: string[] | undefined
+    if (post.imageUrls) {
+      try { mediaUrls = JSON.parse(post.imageUrls) } catch { /* ignore */ }
+    }
+
     if (doX) {
-      const r = await postToX(post.content)
+      const r = await postToX(post.content, mediaUrls)
       if (r.error) errors.push(`X: ${r.error}`)
       else xPostId = r.id || null
     }
 
     if (doThreads) {
-      const r = await postToThreads(post.content)
+      const r = await postToThreads(post.content, mediaUrls)
       if (r.error) errors.push(`Threads: ${r.error}`)
       else threadsPostId = r.id || null
     }

@@ -13,9 +13,12 @@ export async function GET(req: NextRequest) {
   }
 
   const now = new Date()
+  // 5-minute look-ahead: publish posts scheduled within the next 5 minutes
+  // This prevents missing a post when the cron fires slightly before the scheduled time
+  const lookAhead = new Date(now.getTime() + 5 * 60 * 1000)
 
   const duePosts = await prisma.post.findMany({
-    where: { status: '予約済み', scheduledAt: { lte: now } },
+    where: { status: '予約済み', scheduledAt: { lte: lookAhead } },
     orderBy: { scheduledAt: 'asc' },
   })
 
@@ -34,14 +37,19 @@ export async function GET(req: NextRequest) {
     let xPostId: string | null = null
     let threadsPostId: string | null = null
 
+    let mediaUrls: string[] | undefined
+    if (post.imageUrls) {
+      try { mediaUrls = JSON.parse(post.imageUrls) } catch { /* ignore */ }
+    }
+
     if (doX) {
-      const r = await postToX(post.content)
+      const r = await postToX(post.content, mediaUrls)
       if (r.error) errors.push(`X: ${r.error}`)
       else xPostId = r.id || null
     }
 
     if (doThreads) {
-      const r = await postToThreads(post.content)
+      const r = await postToThreads(post.content, mediaUrls)
       if (r.error) errors.push(`Threads: ${r.error}`)
       else threadsPostId = r.id || null
     }

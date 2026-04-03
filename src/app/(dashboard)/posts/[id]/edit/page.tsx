@@ -27,6 +27,7 @@ export default async function EditPostPage({ params }: Props) {
           status: post.status,
           scheduledAt: post.scheduledAt?.toISOString() || null,
           hashtags: post.hashtags,
+          imageUrls: post.imageUrls,
         }}
       />
     </div>

@@ -10,7 +10,7 @@ interface Post {
   threadsImp?: number; threadsLikes?: number; threadsReplies?: number; threadsReposts?: number
   createdAt: string; abGroupId?: string | null; abVariant?: string | null
   qualityScore?: number | null; qualityDetail?: string | null; qualityFeedback?: string | null
-  isFavorite?: boolean
+  isFavorite?: boolean; imageUrls?: string | null
 }
 
 const POST_TYPE_COLORS: Record<string, string> = {
@@ -313,6 +313,29 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
 
         {/* Content */}
         <p className="text-sm text-slate-200 whitespace-pre-wrap mb-3 leading-relaxed">{post.content}</p>
+
+        {/* Media thumbnails */}
+        {post.imageUrls && (() => {
+          try {
+            const urls: string[] = JSON.parse(post.imageUrls)
+            if (urls.length === 0) return null
+            return (
+              <div className="flex gap-2 mb-3 flex-wrap">
+                {urls.map((url, i) => (
+                  <div key={i} className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    {/\.(mp4|mov|webm)(\?|$)/i.test(url) ? (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-xl">🎬</span>
+                      </div>
+                    ) : (
+                      <img src={url} alt="" className="w-full h-full object-cover" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
+          } catch { return null }
+        })()}
 
         {/* Stats */}
         {post.status === '投稿済み' && (

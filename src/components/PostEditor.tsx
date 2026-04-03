@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import PostPreview from './PostPreview'
 import { useRouter } from 'next/navigation'
 
@@ -13,6 +13,7 @@ interface PostEditorProps {
     status?: string
     scheduledAt?: string | null
     hashtags?: string | null
+    imageUrls?: string | null
   }
   mode?: 'create' | 'edit'
 }
@@ -73,6 +74,14 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [keywords, setKeywords] = useState<string[]>([])
+  const [mediaUrls, setMediaUrls] = useState<string[]>(() => {
+    if (initialData?.imageUrls) {
+      try { return JSON.parse(initialData.imageUrls) } catch { return [] }
+    }
+    return []
+  })
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     Promise.all([
@@ -120,6 +129,31 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
     setHashtags(hashtags.filter(h => h !== tag))
   }
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    const remaining = 4 - mediaUrls.length
+    const filesToUpload = Array.from(files).slice(0, remaining)
+    setUploading(true)
+    for (const file of filesToUpload) {
+      const formData = new FormData()
+      formData.append('file', file)
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: formData })
+        const data = await res.json()
+        if (data.url) {
+          setMediaUrls(prev => [...prev, data.url])
+        } else {
+          alert(data.error || 'アップロードに失敗しました')
+        }
+      } catch {
+        alert('アップロードに失敗しました')
+      }
+    }
+    setUploading(false)
+    e.target.value = ''
+  }
+
   const handleSave = async (targetStatus?: string) => {
     setSaving(true)
     const saveStatus = targetStatus || status
@@ -132,6 +166,7 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
         scheduledAt: scheduledAt || null,
         hashtags: hashtags.length ? hashtags : null,
         platform,
+        imageUrls: mediaUrls.length ? mediaUrls : null,
       }
 
       let res
@@ -303,6 +338,55 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
               <p className="text-xs text-red-400">25,000文字を超えています（{(charCount - HARD_LIMIT).toLocaleString()}文字オーバー）</p>
             )}
           </div>
+        </div>
+
+        {/* Media Attachment */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-medium text-slate-300">画像/動画</label>
+            <span className="text-xs text-slate-500">残り{4 - mediaUrls.length}枚</span>
+          </div>
+
+          {mediaUrls.length > 0 && (
+            <div className="flex gap-2 mb-3 flex-wrap">
+              {mediaUrls.map((url, i) => (
+                <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0" style={{ border: '1px solid rgba(255,255,255,0.12)' }}>
+                  {/\.(mp4|mov|webm)(\?|$)/i.test(url) ? (
+                    <div className="w-full h-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.07)' }}>
+                      <span className="text-2xl">🎬</span>
+                    </div>
+                  ) : (
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                  )}
+                  <button
+                    onClick={() => setMediaUrls(prev => prev.filter((_, idx) => idx !== i))}
+                    className="absolute top-0.5 right-0.5 w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold text-white transition-colors"
+                    style={{ background: 'rgba(0,0,0,0.7)' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept="image/jpeg,image/png,image/gif,image/webp,video/mp4"
+            multiple
+            className="hidden"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={mediaUrls.length >= 4 || uploading}
+            className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-40"
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}
+          >
+            {uploading ? '⏳ アップロード中...' : `📷 画像/動画を追加（残り${4 - mediaUrls.length}枚）`}
+          </button>
+          <p className="text-xs text-slate-600 mt-1">JPEG / PNG / GIF / WebP / MP4 · 画像5MB以内 · 動画512MB以内</p>
         </div>
 
         {/* Engagement guidance — per spec */}
