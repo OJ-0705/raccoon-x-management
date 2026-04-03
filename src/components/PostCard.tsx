@@ -183,6 +183,9 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex items-center gap-2 flex-wrap">
+            {post.scheduledAt && (
+              <span className="text-xs text-blue-400 font-medium">⏰ {formatDate(post.scheduledAt)}</span>
+            )}
             <span className="text-sm px-2.5 py-1 rounded-full font-medium text-white" style={{ backgroundColor: typeColor }}>
               {post.postType}
             </span>
@@ -295,11 +298,6 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
               </div>
             )}
           </div>
-        )}
-
-        {/* Scheduled */}
-        {post.scheduledAt && (
-          <div className="text-sm text-blue-400 mb-3">⏰ 予約: {formatDate(post.scheduledAt)}</div>
         )}
 
         {/* Platform toggle */}

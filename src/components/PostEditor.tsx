@@ -102,7 +102,9 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
         body: JSON.stringify({ postType, formatType, keywords, additionalContext: '' }),
       })
       const data = await res.json()
-      if (data.content) {
+      if (data.error) {
+        alert(data.error)
+      } else if (data.content) {
         setContent(data.content)
       }
     } catch (error) {

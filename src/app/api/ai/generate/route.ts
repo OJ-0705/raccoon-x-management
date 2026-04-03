@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '@/lib/prisma'
-import { scorePost, getEngagementTop5, getFavoritePosts, buildEngagementPromptBlock, getBuzzPatternBlock } from '@/lib/quality-gate'
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || '',
@@ -325,14 +324,35 @@ async function callAI(
   userPrompt: string,
   formatType: string,
   systemPrompt: string,
-): Promise<string> {
+): Promise<{ content: string; inputTokens: number; outputTokens: number }> {
   const message = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-haiku-4-5-20251001',
     max_tokens: formatType === 'short' ? 400 : formatType === '長文投稿' ? 4000 : 2000,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   })
-  return message.content[0].type === 'text' ? message.content[0].text : ''
+  const content = message.content[0].type === 'text' ? message.content[0].text : ''
+  return { content, inputTokens: message.usage.input_tokens, outputTokens: message.usage.output_tokens }
+}
+
+async function checkRateLimit(): Promise<{ allowed: boolean; count: number }> {
+  const key = 'ai_generate_calls'
+  const setting = await prisma.settings.findUnique({ where: { key } })
+  const now = Date.now()
+  const oneHourAgo = now - 60 * 60 * 1000
+  let timestamps: number[] = []
+  if (setting?.value) {
+    try { timestamps = JSON.parse(setting.value) } catch {}
+  }
+  timestamps = timestamps.filter(t => t > oneHourAgo)
+  if (timestamps.length >= 5) return { allowed: false, count: timestamps.length }
+  timestamps.push(now)
+  await prisma.settings.upsert({
+    where: { key },
+    update: { value: JSON.stringify(timestamps) },
+    create: { key, value: JSON.stringify(timestamps) },
+  })
+  return { allowed: true, count: timestamps.length }
 }
 
 export async function POST(req: NextRequest) {
@@ -340,13 +360,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { postType, keywords, additionalContext, formatType, existingPosts, emotion, scene, target } = body
 
-    // AI_DISABLED: Anthropic API呼び出し一時停止中
-    return NextResponse.json({
-      content: 'API一時停止中',
-      generated: false,
-    })
-
-    /* eslint-disable no-unreachable */
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({
         content: generateTemplate(postType, keywords),
@@ -354,20 +367,22 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Fetch sample posts from DB for system prompt
-    const samples = await prisma.samplePost.findMany({ orderBy: { number: 'asc' } })
-    const samplePostsText = samples.length > 0
-      ? samples.map(s => `### サンプル${s.number}\n${s.text}`).join('\n\n---\n\n')
+    // Rate limit: max 5 calls per hour
+    const rateLimit = await checkRateLimit()
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: `レート制限: 直近1時間のAI生成が上限（5回）に達しました。しばらく待ってから再試行してください。` },
+        { status: 429 }
+      )
+    }
+
+    // Fetch 3 random sample posts from DB
+    const allSamples = await prisma.samplePost.findMany()
+    const randomSamples = allSamples.sort(() => Math.random() - 0.5).slice(0, 3)
+    const samplePostsText = randomSamples.length > 0
+      ? randomSamples.map(s => `### サンプル${s.number}\n${s.text}`).join('\n\n---\n\n')
       : '（サンプルなし）'
     const activeSystemPrompt = buildSystemPrompt(samplePostsText)
-
-    // Fetch engagement TOP5 + favorites + buzz patterns for prompt injection
-    const [top5, favorites, buzzBlock] = await Promise.all([
-      getEngagementTop5(),
-      getFavoritePosts(),
-      getBuzzPatternBlock(),
-    ])
-    const engagementBlock = buildEngagementPromptBlock(top5, favorites)
 
     const seed = {
       emotion: emotion || randomSeed().emotion,
@@ -375,17 +390,12 @@ export async function POST(req: NextRequest) {
       target: target || randomSeed().target,
     }
 
-    const description = POST_TYPE_DESCRIPTIONS[postType] || POST_TYPE_DESCRIPTIONS['その他']
     const keywordStr = keywords?.length ? `キーワード: ${keywords.join(', ')}` : ''
-
     const existingExcerpts = existingPosts?.length
       ? `\n【過去の投稿（同じテーマ・同じ商品・同じ書き出し・同じ構成は使わないこと）】\n${(existingPosts as string[]).map((p: string, i: number) => `${i + 1}. ${p.slice(0, 100)}`).join('\n')}\n`
       : ''
 
-    const engagementSection = engagementBlock ? `\n${engagementBlock}\n` : ''
-    const buzzSection = buzzBlock ? `\n${buzzBlock}\n` : ''
-
-    const buildPrompt = () => `脂質制限に関する新しいX投稿を1件生成してください。
+    const userPrompt = `脂質制限に関する新しいX投稿を1件生成してください。
 
 条件：
 - サンプル投稿と同じトーン・構造・温度感で書く
@@ -395,63 +405,33 @@ export async function POST(req: NextRequest) {
 - 投稿本文のみを出力する（説明や前置きは不要）
 ${keywordStr ? `\nテーマのヒント: ${keywordStr}` : ''}
 ${additionalContext ? `\n追加コンテキスト: ${additionalContext}` : ''}
-${existingExcerpts}${engagementSection}${buzzSection}
+${existingExcerpts}
 ${formatType === 'short'
-  ? `形式: 短文投稿（140文字程度）
-- タイムラインでパッと読める長さ
-- 1つの気づき・発見・感情だけを書く
-- 必ず140文字以内に収める`
+  ? `形式: 短文投稿（140文字程度）`
   : formatType === '長文投稿'
-  ? `形式: 長文投稿（X Premium対応・1,000〜3,000文字推奨）
-- 詳細な解説・体験談を含むコラム形式
-- マサキの実体験を必ず2つ以上織り込む`
-  : `形式: 標準投稿（500〜1,500文字推奨）
-- 冒頭140文字以内で続きを読ませるフック
-- 本文で体験・数値・感情をしっかり語る`}
+  ? `形式: 長文投稿（500〜1,500文字）`
+  : `形式: 標準投稿（200〜500文字）`}
 
 投稿文のみを出力すること（説明や前置き不要）`
 
-    // Quality-gated generation: up to 3 attempts
-    let bestContent = ''
-    let bestQuality: import('@/lib/quality-gate').QualityScore | null = null
-    let qualityPassed = false
-
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const content = await callAI(buildPrompt(), formatType, activeSystemPrompt)
-      if (!content) continue
-
-      const quality = await scorePost(content)
-
-      if (!quality) {
-        bestContent = content
-        break
-      }
-
-      if (quality.passed) {
-        bestContent = content
-        bestQuality = quality
-        qualityPassed = true
-        break
-      }
-
-      if (!bestQuality || quality.average > bestQuality.average) {
-        bestContent = content
-        bestQuality = quality
-      }
-    }
+    const { content: bestContent, inputTokens, outputTokens } = await callAI(userPrompt, formatType, activeSystemPrompt)
+    console.log(`[AI] input_tokens: ${inputTokens}, output_tokens: ${outputTokens}`)
 
     if (!bestContent) {
-      bestContent = generateTemplate(postType, keywords)
+      return NextResponse.json({
+        content: generateTemplate(postType, keywords),
+        generated: false,
+      })
     }
 
     return NextResponse.json({
       content: bestContent,
       generated: true,
       seed,
-      qualityScore: bestQuality?.average ?? null,
-      qualityDetail: bestQuality?.scores ?? null,
-      qualityFeedback: bestQuality?.feedback ?? null,
-      qualityPassed,
+      qualityScore: null,
+      qualityDetail: null,
+      qualityFeedback: null,
+      qualityPassed: false,
     })
   } catch (error) {
     console.error(error)

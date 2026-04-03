@@ -41,10 +41,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ posts, total: all.length, page, limit })
     }
 
+    const orderBy = status === '予約済み'
+      ? { scheduledAt: 'asc' as const }
+      : { createdAt: 'desc' as const }
+
     const [posts, total] = await Promise.all([
       prisma.post.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip,
         take: limit,
       }),
