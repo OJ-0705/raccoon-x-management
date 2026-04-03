@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import Anthropic from '@anthropic-ai/sdk'
+import { getBuzzPatternBlock, getEngagementTop5, getFavoritePosts, buildEngagementPromptBlock } from '@/lib/quality-gate'
 
 const POST_TYPES_ROTATION = [
   'パーソナル体験型',
@@ -92,6 +93,15 @@ async function generateWithAI(postType: string, existingExcerpts: string[]): Pro
   if (!apiKey) return ''
   try {
     const client = new Anthropic({ apiKey })
+
+    // Fetch buzz patterns and engagement data in parallel
+    const [buzzBlock, top5, favorites] = await Promise.all([
+      getBuzzPatternBlock(),
+      getEngagementTop5(),
+      getFavoritePosts(),
+    ])
+    const engagementBlock = buildEngagementPromptBlock(top5, favorites)
+
     const existingBlock = existingExcerpts.length
       ? `\n【過去の投稿（同じテーマ・同じ書き出し・同じ構成は使わないこと）】\n${existingExcerpts.slice(-20).map((e, i) => `${i + 1}. ${e}`).join('\n')}\n`
       : ''
@@ -111,7 +121,7 @@ async function generateWithAI(postType: string, existingExcerpts: string[]): Pro
 投稿タイプ: ${postType}
 テーマ: 低脂質食品・脂質制限・洋なし型体質・マサキの体験
 ${personalInstruction}
-${existingBlock}
+${buzzBlock ? buzzBlock + '\n' : ''}${engagementBlock ? engagementBlock + '\n' : ''}${existingBlock}
 制約:
 - 推奨文字数: 500〜1,500文字（X Premiumエンゲージメント最適）
 - ハッシュタグは原則なし（最大1個）
