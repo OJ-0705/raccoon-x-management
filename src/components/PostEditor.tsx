@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import PostPreview from './PostPreview'
 import { useRouter } from 'next/navigation'
+import { resizeImage, GIF_SIZE_LIMIT } from '@/lib/resizeImage'
 
 interface PostEditorProps {
   initialData?: {
@@ -138,8 +139,18 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
     const filesToUpload = Array.from(files).slice(0, remaining)
     setUploading(true)
     for (const file of filesToUpload) {
+      let uploadBlob: Blob = file
+      if (file.type === 'image/gif') {
+        if (file.size > GIF_SIZE_LIMIT) {
+          alert('GIFファイルのサイズが大きすぎます（4.5MB以下にしてください）')
+          continue
+        }
+      } else {
+        const resized = await resizeImage(file)
+        if (resized) uploadBlob = resized
+      }
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', uploadBlob, 'image.jpg')
       try {
         const res = await fetch('/api/upload', { method: 'POST', body: formData })
         const data = await res.json()

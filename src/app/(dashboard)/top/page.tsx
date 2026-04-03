@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import ScheduleModal from '@/components/ScheduleModal'
+import { resizeImage, GIF_SIZE_LIMIT } from '@/lib/resizeImage'
 
 interface Post {
   id: string
@@ -221,8 +222,18 @@ export default function TopPage() {
     const filesToUpload = Array.from(files).slice(0, remaining)
     setEditUploading(true)
     for (const file of filesToUpload) {
+      let uploadBlob: Blob = file
+      if (file.type === 'image/gif') {
+        if (file.size > GIF_SIZE_LIMIT) {
+          alert('GIFファイルのサイズが大きすぎます（4.5MB以下にしてください）')
+          continue
+        }
+      } else {
+        const resized = await resizeImage(file)
+        if (resized) uploadBlob = resized
+      }
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', uploadBlob, 'image.jpg')
       try {
         const res = await fetch('/api/upload', { method: 'POST', body: formData })
         const data = await res.json()
