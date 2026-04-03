@@ -16,6 +16,8 @@ export async function GET() {
     NEXTAUTH_SECRET: !!process.env.NEXTAUTH_SECRET,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL ?? '(not set)',
     VERCEL_URL: process.env.VERCEL_URL ?? '(not set)',
+    BLOB_READ_WRITE_TOKEN: !!process.env.BLOB_READ_WRITE_TOKEN,
+    ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY,
   }
   for (const key of candidates) {
     const val = process.env[key]
