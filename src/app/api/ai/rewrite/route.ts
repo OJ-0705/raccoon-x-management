@@ -6,6 +6,10 @@ export async function POST(req: NextRequest) {
     const { content, instruction, postType, formatType } = await req.json()
     const isLongForm = formatType === '長文投稿'
 
+    // AI_DISABLED: Anthropic API呼び出し一時停止中
+    return NextResponse.json({ result: 'API一時停止中', generated: false })
+
+    /* eslint-disable no-unreachable */
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
       return NextResponse.json({ result: content + '\n（AI書き換え: APIキー未設定）', generated: false })

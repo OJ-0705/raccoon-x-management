@@ -50,6 +50,11 @@ function getClient(): Anthropic | null {
 }
 
 export async function scorePost(content: string): Promise<QualityScore | null> {
+  // AI_DISABLED: Anthropic API呼び出し一時停止中
+  void content
+  return null
+
+  /* eslint-disable no-unreachable */
   const client = getClient()
   if (!client) return null
 

@@ -89,6 +89,11 @@ function getTemplate(postType: string, index: number): string {
 }
 
 async function generateWithAI(postType: string, existingExcerpts: string[]): Promise<string> {
+  // AI_DISABLED: Anthropic API呼び出し一時停止中 — テンプレートにフォールバック
+  void postType; void existingExcerpts
+  return ''
+
+  /* eslint-disable no-unreachable */
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return ''
   try {

@@ -44,6 +44,13 @@ export async function POST(req: NextRequest) {
 投稿済み数: ${postedPosts.length}件
 トップ投稿: "${postedPosts[0]?.content?.slice(0, 60) ?? 'なし'}..."`
 
+    // AI_DISABLED: Anthropic API呼び出し一時停止中
+    return NextResponse.json({
+      report: `📊 パフォーマンスサマリー（過去${days}日）\n\n${summary}\n\n※ AI分析は現在一時停止中です。`,
+      generated: false,
+    })
+
+    /* eslint-disable no-unreachable */
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
       return NextResponse.json({

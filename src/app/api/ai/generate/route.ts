@@ -340,6 +340,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { postType, keywords, additionalContext, formatType, existingPosts, emotion, scene, target } = body
 
+    // AI_DISABLED: Anthropic API呼び出し一時停止中
+    return NextResponse.json({
+      content: 'API一時停止中',
+      generated: false,
+    })
+
+    /* eslint-disable no-unreachable */
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({
         content: generateTemplate(postType, keywords),

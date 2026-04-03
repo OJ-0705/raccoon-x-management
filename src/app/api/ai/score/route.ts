@@ -42,8 +42,9 @@ export async function POST(req: NextRequest) {
   let feedback = `文字数: ${charCount}字`
   let predictedEngagement = 0
 
+  // AI_DISABLED: Anthropic API呼び出し一時停止中
   const apiKey = process.env.ANTHROPIC_API_KEY
-  if (apiKey) {
+  if (false && apiKey) {
     try {
       const client = new Anthropic({ apiKey })
       const msg = await client.messages.create({
