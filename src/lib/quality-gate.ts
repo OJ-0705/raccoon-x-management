@@ -181,11 +181,21 @@ export async function getBuzzPatternBlock(): Promise<string> {
 
     if (patterns.length < 5) return ''
 
-    const lines = patterns.slice(0, 5).map((p, i) =>
-      `パターン${i + 1}：フック「${p.hookType}」→ ${p.structure}`
-    )
+    // Shuffle to vary which 5 are used each generation
+    const shuffled = [...patterns].sort(() => Math.random() - 0.5).slice(0, 5)
 
-    return `【バズる投稿の構造パターン（分析済み）】\n${lines.join('\n')}\nこれらのパターンを参考に、マサキの投稿を生成してください。`
+    const lines = shuffled.map((p, i) => {
+      let analysis: Record<string, string> = {}
+      try { analysis = JSON.parse(p.analysis) } catch { /* ignore */ }
+      const detail = [
+        analysis.firstLine ? `1行目:${analysis.firstLine}` : '',
+        analysis.emotion ? `感情:${analysis.emotion}` : '',
+        analysis.writingStyle ? `文体:${analysis.writingStyle}` : '',
+      ].filter(Boolean).join(' / ')
+      return `パターン${i + 1}：フック「${p.hookType}」→ ${p.structure}${detail ? `\n  詳細: ${detail}` : ''}`
+    })
+
+    return `【バズる投稿の構造パターン（X実績データから分析）】\n${lines.join('\n')}\nこれらのパターンの「フック」「構造」「感情」を参考に、マサキの言葉で投稿を生成してください。内容をコピーせず、構造とトーンのみ借用すること。`
   } catch {
     return ''
   }
