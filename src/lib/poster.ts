@@ -74,35 +74,50 @@ function uint8ToBase64(bytes: Uint8Array): string {
 }
 
 /**
- * Upload a single image to X via the simple Media Upload API.
+ * Upload a single image to X via the simple Media Upload API (multipart/form-data).
+ * Using multipart avoids including the large binary in the OAuth signature base string.
  * Returns media_id_string on success, null on failure.
  */
 async function uploadImageToX(imageUrl: string, creds: XCredentials): Promise<string | null> {
   try {
-    let base64: string
+    let blobPart: ArrayBuffer | Buffer
+    let mimeType = 'image/jpeg'
+
     if (imageUrl.startsWith('data:')) {
-      // Base64 data URL stored in DB — extract base64 part directly
+      // Base64 data URL stored in DB — decode to binary
       const comma = imageUrl.indexOf(',')
       if (comma === -1) { console.error('[poster] Invalid data URL'); return null }
-      base64 = imageUrl.slice(comma + 1)
+      const meta = imageUrl.slice(5, comma) // e.g. "image/jpeg;base64"
+      mimeType = meta.split(';')[0] || 'image/jpeg'
+      const b64 = imageUrl.slice(comma + 1)
+      // Node.js Buffer.from handles base64 decoding reliably
+      blobPart = Buffer.from(b64, 'base64')
     } else {
       const imgRes = await fetch(imageUrl)
       if (!imgRes.ok) { console.error('[poster] Failed to fetch image:', imageUrl); return null }
-      const buffer = await imgRes.arrayBuffer()
-      base64 = uint8ToBase64(new Uint8Array(buffer))
+      mimeType = imgRes.headers.get('content-type') || 'image/jpeg'
+      blobPart = await imgRes.arrayBuffer()
     }
 
     const uploadUrl = 'https://upload.twitter.com/1.1/media/upload.json'
-    const bodyParams = { media_data: base64 }
-    const authHeader = await buildXOAuthHeader('POST', uploadUrl, bodyParams, creds)
+
+    // multipart/form-data: body params are excluded from OAuth signature (OAuth 1.0a spec §3.4.1.3)
+    const authHeader = await buildXOAuthHeader('POST', uploadUrl, {}, creds)
+
+    const formData = new FormData()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    formData.append('media', new Blob([blobPart as any], { type: mimeType }), 'media')
 
     const res = await fetch(uploadUrl, {
       method: 'POST',
-      headers: { 'Authorization': authHeader, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams(bodyParams).toString(),
+      headers: { 'Authorization': authHeader },
+      body: formData,
     })
     const data = await res.json()
-    if (!res.ok) { console.error('[poster] X media upload error:', data); return null }
+    if (!res.ok) {
+      console.error('[poster] X media upload error', res.status, JSON.stringify(data))
+      return null
+    }
     console.log('[poster] X image uploaded, media_id:', data.media_id_string)
     return data.media_id_string || null
   } catch (err) {
