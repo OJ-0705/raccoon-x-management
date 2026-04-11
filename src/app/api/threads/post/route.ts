@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 async function postToThreads(text: string): Promise<{ id: string } | { error: string }> {
-  const accessToken = process.env.THREADS_ACCESS_TOKEN
-  const userId = process.env.THREADS_USER_ID
+  const accessToken = (process.env.THREADS_ACCESS_TOKEN || '').trim()
+  const userId = (process.env.THREADS_USER_ID || '').trim()
 
   if (!accessToken || !userId) {
     return { error: 'THREADS_ACCESS_TOKEN または THREADS_USER_ID が未設定です' }
