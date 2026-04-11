@@ -62,6 +62,9 @@ export default function ThreadsDashboardPage() {
   const [posts, setPosts] = useState<ThreadsPost[]>([])
   const [loading, setLoading] = useState(true)
   const [threadsConfigured, setThreadsConfigured] = useState<boolean | null>(null)
+  const [fetchingMetrics, setFetchingMetrics] = useState(false)
+  const [fetchResult, setFetchResult] = useState<string | null>(null)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -79,6 +82,26 @@ export default function ThreadsDashboardPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const fetchThreadsMetrics = async () => {
+    setShowConfirmDialog(false)
+    setFetchingMetrics(true)
+    setFetchResult(null)
+    try {
+      const res = await fetch('/api/analytics/fetch', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        setFetchResult(`✅ Threads: ${data.threads}件更新（無料）`)
+        await load()
+      } else {
+        setFetchResult(`❌ エラー: ${data.error || '取得失敗'}`)
+      }
+    } catch (err) {
+      setFetchResult(`❌ ${String(err)}`)
+    } finally {
+      setFetchingMetrics(false)
+    }
+  }
 
   const totalImp = posts.reduce((s, p) => s + (p.threadsImp || 0), 0)
   const totalLikes = posts.reduce((s, p) => s + (p.threadsLikes || 0), 0)
@@ -119,10 +142,65 @@ export default function ThreadsDashboardPage() {
           <h1 className="text-2xl font-bold text-white">ダッシュボード — Threads</h1>
           <p className="text-slate-400 text-xs mt-0.5">Threadsのパフォーマンス分析</p>
         </div>
-        <Link href="/posts/new" className="px-3 py-2 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-xs font-medium transition-all shadow-lg shadow-orange-500/20">
-          ✏️ 新規投稿
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowConfirmDialog(true)}
+            disabled={fetchingMetrics}
+            className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all disabled:opacity-40"
+            style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', color: '#c4b5fd' }}
+          >
+            {fetchingMetrics ? '取得中...' : '📊 アナリティクスを反映'}
+          </button>
+          <Link href="/posts/new" className="px-3 py-2 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-xs font-medium transition-all shadow-lg shadow-orange-500/20">
+            ✏️ 新規投稿
+          </Link>
+        </div>
       </div>
+
+      {/* Confirmation dialog */}
+      {showConfirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }}>
+          <div className="rounded-2xl p-6 w-80 space-y-4" style={{ background: 'rgba(15,23,42,0.98)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}>
+            <h3 className="text-base font-bold text-white">📊 Threadsアナリティクスを取得</h3>
+            <div className="text-sm text-slate-300 space-y-2">
+              <p>Threads投稿のインサイトを取得します。</p>
+              <div className="rounded-xl p-3 space-y-1" style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)' }}>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">対象投稿数</span>
+                  <span className="text-white font-medium">{posts.filter(p => p.threadsPostId).length} 件</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">コスト</span>
+                  <span className="text-green-300 font-bold">無料</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowConfirmDialog(false)}
+                className="flex-1 py-2 rounded-xl text-sm font-medium transition-all"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={fetchThreadsMetrics}
+                className="flex-1 py-2 rounded-xl text-sm font-bold transition-all"
+                style={{ background: 'rgba(139,92,246,0.2)', border: '1px solid rgba(139,92,246,0.4)', color: '#c4b5fd' }}
+              >
+                取得する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fetch result toast */}
+      {fetchResult && (
+        <div className="rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          {fetchResult}
+        </div>
+      )}
 
       {/* Threads connection status */}
       {threadsConfigured === true ? (

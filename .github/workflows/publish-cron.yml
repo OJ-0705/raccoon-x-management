@@ -4,16 +4,16 @@ on:
   schedule:
     # Run every 30 minutes (288→48 triggers/day — far more reliable than */5)
     - cron: '0,30 * * * *'
-    # Sync Notion samples daily at 21:00 UTC (06:00 JST)
-    - cron: '0 21 * * *'
+    # Fetch X/Threads analytics weekly — Monday 22:00 UTC (JST Tuesday 07:00)
+    - cron: '0 22 * * 1'
   workflow_dispatch:  # Allow manual trigger from GitHub UI
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 2
-    # Only run for publish schedule (not notion-sync schedule)
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.event.schedule != '0 21 * * *')
+    # Only run for publish schedule (not analytics-fetch schedule)
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.event.schedule == '0,30 * * * *')
     steps:
       - name: Trigger publish cron
         run: |
@@ -27,17 +27,21 @@ jobs:
             exit 1
           fi
 
-  notion-sync:
+  analytics-fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
-    # Only run at 21:00 UTC (not every 30 minutes)
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.event.schedule == '0 21 * * *')
+    timeout-minutes: 3
+    # Only run at Monday 22:00 UTC (weekly analytics fetch)
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.event.schedule == '0 22 * * 1')
     steps:
-      - name: Sync Notion samples
+      - name: Fetch X/Threads analytics metrics
         run: |
-          RESPONSE=$(curl -s -o /tmp/notion-response.json -w "%{http_code}" \
+          RESPONSE=$(curl -s -o /tmp/analytics-response.json -w "%{http_code}" \
             -X POST \
-            "https://raccoon-x-management.vercel.app/api/notion-sync" \
+            "https://raccoon-x-management.vercel.app/api/analytics/fetch" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_PASSWORD }}")
           echo "HTTP Status: $RESPONSE"
-          cat /tmp/notion-response.json
+          cat /tmp/analytics-response.json
+          if [ "$RESPONSE" != "200" ] && [ "$RESPONSE" != "429" ]; then
+            echo "Error: Unexpected HTTP status $RESPONSE"
+            exit 1
+          fi

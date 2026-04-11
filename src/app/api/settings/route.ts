@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function GET() {
   return NextResponse.json({
     slackWebhookConfigured: !!process.env.SLACK_WEBHOOK_URL,
-    anthropicConfigured: !!process.env.ANTHROPIC_API_KEY,
     threadsConfigured: !!(process.env.THREADS_ACCESS_TOKEN && process.env.THREADS_USER_ID),
     xConfigured: !!(process.env.X_CONSUMER_KEY && process.env.X_ACCESS_TOKEN),
   })

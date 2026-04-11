@@ -72,9 +72,7 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
   const [hashtagInput, setHashtagInput] = useState('')
   const [platform, setPlatform] = useState<'both' | 'x'>('both')
   const [templates, setTemplates] = useState<Template[]>([])
-  const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [keywords, setKeywords] = useState<string[]>([])
   const [mediaUrls, setMediaUrls] = useState<string[]>(() => {
     if (initialData?.imageUrls) {
       try { return JSON.parse(initialData.imageUrls) } catch { return [] }
@@ -85,35 +83,8 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/templates').then(r => r.json()),
-      fetch('/api/keywords').then(r => r.json()),
-    ]).then(([tmpl, kw]) => {
-      setTemplates(tmpl)
-      setKeywords(kw.map((k: { keyword: string }) => k.keyword))
-    })
+    fetch('/api/templates').then(r => r.json()).then(tmpl => setTemplates(tmpl))
   }, [])
-
-  const handleGenerate = async () => {
-    setGenerating(true)
-    try {
-      const res = await fetch('/api/ai/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postType, formatType, keywords, additionalContext: '' }),
-      })
-      const data = await res.json()
-      if (data.error) {
-        alert(data.error)
-      } else if (data.content) {
-        setContent(data.content)
-      }
-    } catch (error) {
-      console.error(error)
-    } finally {
-      setGenerating(false)
-    }
-  }
 
   const handleTemplateSelect = (tmpl: Template) => {
     setContent(tmpl.templateContent)
@@ -286,21 +257,6 @@ export default function PostEditor({ initialData, mode = 'create' }: PostEditorP
             </div>
           </div>
         )}
-
-        {/* AI Generate */}
-        <div>
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-900 text-white rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
-          >
-            {generating ? (
-              <>⏳ AI生成中...</>
-            ) : (
-              <>🤖 AIで投稿文を生成</>
-            )}
-          </button>
-        </div>
 
         {/* Content */}
         <div>

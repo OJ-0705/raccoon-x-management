@@ -38,6 +38,37 @@ model Post {
   isFavorite       Boolean   @default(false)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+  postAnalytics    PostAnalytics[]
+}
+
+model PostAnalytics {
+  id             String   @id @default(cuid())
+  postId         String
+  platform       String   // "x" or "threads"
+  externalId     String
+  impressions    Int      @default(0)
+  likes          Int      @default(0)
+  reposts        Int      @default(0)
+  replies        Int      @default(0)
+  quotes         Int      @default(0)
+  engagementRate Float    @default(0)
+  fetchDate      String   // YYYY-MM-DD
+  fetchedAt      DateTime @default(now())
+
+  post           Post     @relation(fields: [postId], references: [id])
+
+  @@unique([postId, platform, fetchDate])
+}
+
+model ApiUsage {
+  id        String @id @default(cuid())
+  date      String // YYYY-MM-DD
+  provider  String // "x" or "threads"
+  callCount Int    @default(0)
+  postCount Int    @default(0)
+  costUsd   Float  @default(0)
+
+  @@unique([date, provider])
 }
 
 model BuzzPattern {

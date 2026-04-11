@@ -11,7 +11,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import Anthropic from '@anthropic-ai/sdk'
 import { scorePost, getEngagementTop5, getFavoritePosts, buildEngagementPromptBlock, getBuzzPatternBlock } from '@/lib/quality-gate'
 
 // ── Auth ────────────────────────────────────────────────────────────────────
@@ -444,73 +443,18 @@ function getTemplate(postType: string): string {
   return list[idx % list.length]
 }
 
-// ── AI generation ────────────────────────────────────────────────────────────
+// ── AI generation (廃止 — XMCPダッシュボードが担当) ──────────────────────────
 async function generateWithAI(
-  postType: string,
-  keywords: string,
-  formatType: 'short' | 'long',
-  seed: { emotion: string; scene: string; target: string },
-  existingExcerpts: string[],
-  notionContext?: string,
-  engagementBlock?: string,
-  buzzBlock?: string,
+  _postType: string,
+  _keywords: string,
+  _formatType: 'short' | 'long',
+  _seed: { emotion: string; scene: string; target: string },
+  _existingExcerpts: string[],
+  _notionContext?: string,
+  _engagementBlock?: string,
+  _buzzBlock?: string,
 ): Promise<string | null> {
-  const apiKey = (process.env.ANTHROPIC_API_KEY || '').trim()
-  if (!apiKey) return null
-
-  const existingBlock = existingExcerpts.length
-    ? `\n【過去の投稿（同じテーマ・同じ商品・同じ書き出し・同じ構成は使わないこと）】\n${existingExcerpts.map((e, i) => `${i + 1}. ${e}`).join('\n')}\n`
-    : ''
-
-  const notionBlock = notionContext
-    ? `\n【最新の商品情報・知識（積極的に活用してください）】\n${notionContext}\n`
-    : ''
-
-  const engagementSection = engagementBlock ? `\n${engagementBlock}\n` : ''
-  const buzzSection = buzzBlock ? `\n${buzzBlock}\n` : ''
-
-  const formatInstruction = formatType === 'short'
-    ? `形式: 短文投稿（140文字以内）
-- タイムラインでパッと読める長さ
-- 1つの気づき・発見・感情だけを書く
-- 余計な説明は不要。必ず140文字以内に収める`
-    : `形式: 長文投稿（500〜1,500文字推奨）
-- 体験談、ストーリー、深い気づきを語る
-- 冒頭140文字以内にフックを置き「続きを読む」を押させる
-- 改行を多用して読みやすく`
-
-  const prompt = `投稿タイプ: ${postType}
-キーワード: ${keywords}
-
-今回の切り口：
-- 感情トーン：${seed.emotion}
-- 場面設定：${seed.scene}
-- 語りの対象：${seed.target}
-この切り口でマサキのリアルな一人称で投稿を書いてください。
-${existingBlock}${notionBlock}${engagementSection}${buzzSection}
-${formatInstruction}
-
-【絶対禁止】
-- ①②③のリスト形式
-- 「○○5選」のまとめ形式
-- ハッシュタグは最大1個（なくてもよい）
-- 冒頭を情報の要約で始める
-
-投稿文のみ出力（説明・コメント不要）`
-
-  try {
-    const client = new Anthropic({ apiKey })
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: formatType === 'short' ? 300 : 1200,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: prompt }],
-    })
-    const text = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
-    return text || null
-  } catch {
-    return null
-  }
+  return null
 }
 
 // ── Fetch Notion context ──────────────────────────────────────────────────────

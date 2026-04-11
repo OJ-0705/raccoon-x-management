@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import Anthropic from '@anthropic-ai/sdk'
-import { getBuzzPatternBlock, getEngagementTop5, getFavoritePosts, buildEngagementPromptBlock } from '@/lib/quality-gate'
 
 const POST_TYPES_ROTATION = [
   'パーソナル体験型',
@@ -88,69 +86,9 @@ function getTemplate(postType: string, index: number): string {
   return templates[index % templates.length]
 }
 
-async function generateWithAI(postType: string, existingExcerpts: string[]): Promise<string> {
-  // AI_DISABLED: Anthropic API呼び出し一時停止中 — テンプレートにフォールバック
-  void postType; void existingExcerpts
-  return ''
-
-  /* eslint-disable no-unreachable */
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return ''
-  try {
-    const client = new Anthropic({ apiKey })
-
-    // Fetch buzz patterns and engagement data in parallel
-    const [buzzBlock, top5, favorites] = await Promise.all([
-      getBuzzPatternBlock(),
-      getEngagementTop5(),
-      getFavoritePosts(),
-    ])
-    const engagementBlock = buildEngagementPromptBlock(top5, favorites)
-
-    const existingBlock = existingExcerpts.length
-      ? `\n【過去の投稿（同じテーマ・同じ書き出し・同じ構成は使わないこと）】\n${existingExcerpts.slice(-20).map((e, i) => `${i + 1}. ${e}`).join('\n')}\n`
-      : ''
-    const isPersonal = postType === 'パーソナル体験型'
-    const personalInstruction = isPersonal ? `
-【重要】これはパーソナル体験型の投稿です。マサキ個人の体験・感情・日常を語る投稿にしてください。
-商品紹介や知識共有ではなく、「人間マサキ」が主役の投稿です。
-例：遺伝子検査で洋なし型と分かった日 / 無茶ダイエットで倒れた経験 / 正月3日で3キロ増 / 飲み会で我慢した話 / 低脂質おせんべいを作りたいビジョン
-` : ''
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1200,
-      messages: [{
-        role: 'user',
-        content: `X（Twitter）の投稿文を1つ作成してください。
-
-投稿タイプ: ${postType}
-テーマ: 低脂質食品・脂質制限・洋なし型体質・マサキの体験
-${personalInstruction}
-${buzzBlock ? buzzBlock + '\n' : ''}${engagementBlock ? engagementBlock + '\n' : ''}${existingBlock}
-制約:
-- 推奨文字数: 500〜1,500文字（X Premiumエンゲージメント最適）
-- ハッシュタグは原則なし（最大1個）
-- 箇条書きリスト（①②③）は禁止
-- 「○○5選」のまとめ形式は禁止
-- 冒頭140文字で「続きを読む」を押したくなるフックを置く
-- 冒頭1文目の文末に「。」を入れない
-- 一人称は「僕」。友達にゆるく話すような親しみやすい口調
-- 具体的な数値を入れる
-- 最後は読者への問いかけか呼びかけで締める
-- 句点（。）や！の後は必ず改行する。2〜3文ごとに空行（2回改行）を入れてブロック分けする
-- 語尾は「〜だよ」「〜だ」「〜なんだ」だけで終わらず「〜だよね」「〜じゃん」「〜かな」「〜かもしれない」「〜んだよな」など温かみのある語尾を使う
-- 「…」を自然に使って人間味・余韻を演出する（「。…」はNG、「。」を省いて「…」のみにする）
-- 妹・兄・姉・弟・親・母・父など具体的な家族を投稿に登場させない
-- 敬語8割・ため口2割で書く。基本はです・ます調。感情が出る場面のみカジュアルに（「マジでヤバい！」「神すぎる！」「絶望した笑」など）。「〜と考えられています」「〜でございます」「いかがでしょうか」などの教科書・ビジネス敬語はNG
-- 脂質制限を「楽しいゲーム・宝探し」として語る。苦行・我慢感はNG
-投稿文のみ出力（説明不要）`,
-      }],
-    })
-    const text = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
-    return text
-  } catch {
-    return ''
-  }
+function generateWithAI(_postType: string, _existingExcerpts: string[]): Promise<string> {
+  // AI生成廃止 — XMCPダッシュボードが担当
+  return Promise.resolve('')
 }
 
 export async function GET() {

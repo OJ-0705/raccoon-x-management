@@ -97,8 +97,8 @@ export default function Sidebar() {
         <Link href="/calendar" className={linkCls('/calendar')}>
           <span>📅</span><span>カレンダー</span>
         </Link>
-        <Link href="/research" className={linkCls('/research')}>
-          <span>🔍</span><span>調査</span>
+        <Link href="/posts/import" className={linkCls('/posts/import')}>
+          <span>📥</span><span>インポート</span>
         </Link>
         <Link href="/settings" className={linkCls('/settings')}>
           <span>⚙️</span><span>設定</span>

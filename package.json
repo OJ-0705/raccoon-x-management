@@ -13,7 +13,6 @@
     "cron:test": "node -e \"fetch('http://localhost:3001/api/cron/publish').then(r=>r.json()).then(d=>console.log(JSON.stringify(d,null,2))).catch(e=>console.error(e))\""
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.78.0",
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
     "@types/bcryptjs": "^2.4.6",
