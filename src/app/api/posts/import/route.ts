@@ -10,12 +10,24 @@ interface ImportPost {
   source?: string
 }
 
+interface ImportPayload {
+  exported_at: string
+  total_posts: number
+  posts: ImportPost[]
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json() as ImportPost[]
+    const raw = await req.json()
 
-    if (!Array.isArray(body)) {
-      return NextResponse.json({ error: 'JSONは配列である必要があります' }, { status: 400 })
+    // 新形式 { exported_at, total_posts, posts: [...] } と旧形式 [...] の両方に対応
+    let body: ImportPost[]
+    if (Array.isArray(raw)) {
+      body = raw as ImportPost[]
+    } else if (raw && Array.isArray((raw as ImportPayload).posts)) {
+      body = (raw as ImportPayload).posts
+    } else {
+      return NextResponse.json({ error: 'JSONはpostsフィールドを持つオブジェクトか配列である必要があります' }, { status: 400 })
     }
 
     const now = new Date()

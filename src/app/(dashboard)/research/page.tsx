@@ -321,13 +321,8 @@ export default function ResearchPage() {
           <div>
             <h2 className="text-lg font-bold text-white">バズパターン登録</h2>
             <p className="text-xs text-gray-400 mt-0.5">
-              伸びた競合投稿を登録 → AIが構造を分析 → 次の投稿生成に活用
-              {buzzPatterns.length < 5 && (
-                <span className="text-orange-400 ml-2">（5件以上で自動注入）現在{buzzPatterns.length}件</span>
-              )}
-              {buzzPatterns.length >= 5 && (
-                <span className="text-green-400 ml-2">✅ {buzzPatterns.length}件登録済み・自動注入中</span>
-              )}
+              伸びた競合投稿を登録してパターンをストック
+              <span className="text-slate-500 ml-2">（{buzzPatterns.length}件登録済み）</span>
             </p>
           </div>
         </div>
@@ -354,7 +349,7 @@ export default function ResearchPage() {
             disabled={addingBuzz || !newBuzzText.trim()}
             className="w-full py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
           >
-            {addingBuzz ? 'AI分析中...' : '✨ AIで構造分析して登録'}
+            {addingBuzz ? '登録中...' : '📌 バズパターンを登録'}
           </button>
         </div>
 
@@ -409,7 +404,7 @@ export default function ResearchPage() {
           })}
           {buzzPatterns.length === 0 && (
             <p className="text-sm text-gray-500 text-center py-6">
-              バズった投稿を登録して、AIの生成精度を上げましょう
+              バズった投稿を登録してパターンをストックしましょう
             </p>
           )}
         </div>
