@@ -384,16 +384,13 @@ export async function postToThreads(content: string, mediaUrls?: string[]): Prom
 
     if (videos.length > 0) {
       // Single video post (video takes priority, ignoring images per X/Threads rules)
-      const containerRes = await fetch(baseUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          media_type: 'VIDEO',
-          video_url: videos[0],
-          text: threadsText,
-          access_token: accessToken,
-        }),
+      const videoParams = new URLSearchParams({
+        media_type: 'VIDEO',
+        video_url: videos[0],
+        text: threadsText,
+        access_token: accessToken,
       })
+      const containerRes = await fetch(`${baseUrl}?${videoParams.toString()}`, { method: 'POST' })
       const container = await containerRes.json() as { id?: string; error?: { message: string } }
       if (!container.id) {
         const msg = container.error?.message || 'Threads container creation failed'
@@ -403,16 +400,13 @@ export async function postToThreads(content: string, mediaUrls?: string[]): Prom
       creationId = container.id
     } else if (images.length === 1) {
       // Single image post
-      const containerRes = await fetch(baseUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          media_type: 'IMAGE',
-          image_url: images[0],
-          text: threadsText,
-          access_token: accessToken,
-        }),
+      const imageParams = new URLSearchParams({
+        media_type: 'IMAGE',
+        image_url: images[0],
+        text: threadsText,
+        access_token: accessToken,
       })
+      const containerRes = await fetch(`${baseUrl}?${imageParams.toString()}`, { method: 'POST' })
       const container = await containerRes.json() as { id?: string; error?: { message: string } }
       if (!container.id) {
         const msg = container.error?.message || 'Threads container creation failed'
@@ -424,31 +418,25 @@ export async function postToThreads(content: string, mediaUrls?: string[]): Prom
       // Carousel post
       const itemIds: string[] = []
       for (const imageUrl of images.slice(0, 4)) {
-        const itemRes = await fetch(baseUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            media_type: 'IMAGE',
-            image_url: imageUrl,
-            is_carousel_item: true,
-            access_token: accessToken,
-          }),
+        const itemParams = new URLSearchParams({
+          media_type: 'IMAGE',
+          image_url: imageUrl,
+          is_carousel_item: 'true',
+          access_token: accessToken,
         })
+        const itemRes = await fetch(`${baseUrl}?${itemParams.toString()}`, { method: 'POST' })
         const item = await itemRes.json() as { id?: string; error?: { message: string } }
         if (item.id) itemIds.push(item.id)
       }
       if (itemIds.length === 0) return { error: 'Threads carousel item creation failed' }
 
-      const carouselRes = await fetch(baseUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          media_type: 'CAROUSEL',
-          children: itemIds,
-          text: threadsText,
-          access_token: accessToken,
-        }),
+      const carouselParams = new URLSearchParams({
+        media_type: 'CAROUSEL',
+        text: threadsText,
+        access_token: accessToken,
       })
+      itemIds.forEach(id => carouselParams.append('children', id))
+      const carouselRes = await fetch(`${baseUrl}?${carouselParams.toString()}`, { method: 'POST' })
       const carousel = await carouselRes.json() as { id?: string; error?: { message: string } }
       if (!carousel.id) {
         const msg = carousel.error?.message || 'Threads carousel creation failed'
@@ -457,16 +445,17 @@ export async function postToThreads(content: string, mediaUrls?: string[]): Prom
       }
       creationId = carousel.id
     } else {
-      // Text only
-      const containerRes = await fetch(baseUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ media_type: 'TEXT', text: threadsText, access_token: accessToken }),
+      // Text only — use URL query params (Meta Graph API standard, not JSON body)
+      const textParams = new URLSearchParams({
+        media_type: 'TEXT',
+        text: threadsText,
+        access_token: accessToken,
       })
+      const containerRes = await fetch(`${baseUrl}?${textParams.toString()}`, { method: 'POST' })
       const container = await containerRes.json() as { id?: string; error?: { message: string } }
       if (!container.id) {
         const msg = container.error?.message || 'Threads container creation failed'
-        console.error('[poster] Threads container error:', msg)
+        console.error('[poster] Threads container error:', msg, '| text length:', threadsText.length)
         return { error: msg }
       }
       creationId = container.id
@@ -476,10 +465,9 @@ export async function postToThreads(content: string, mediaUrls?: string[]): Prom
 
     // Wait for media processing then publish
     await new Promise(r => setTimeout(r, 2000))
-    const publishRes = await fetch(`https://graph.threads.net/v1.0/${userId}/threads_publish`, {
+    const publishParams = new URLSearchParams({ creation_id: creationId, access_token: accessToken })
+    const publishRes = await fetch(`https://graph.threads.net/v1.0/${userId}/threads_publish?${publishParams.toString()}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ creation_id: creationId, access_token: accessToken }),
     })
     const published = await publishRes.json() as { id?: string; error?: { message: string } }
     if (!published.id) {

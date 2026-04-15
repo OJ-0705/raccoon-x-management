@@ -17,6 +17,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const { id } = await params
     const body = await req.json()
+
+    if (typeof body.content === 'string' && body.content.includes('\uFFFD')) {
+      return NextResponse.json(
+        { error: 'テキストに文字化け（U+FFFD）が検出されました。UTF-8で保存されたテキストを使用してください' },
+        { status: 400 }
+      )
+    }
+
     const data: Record<string, unknown> = {}
     if (body.status !== undefined) data.status = body.status
     if (body.scheduledAt !== undefined) data.scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null

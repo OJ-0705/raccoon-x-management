@@ -9,13 +9,10 @@ async function postToThreads(text: string): Promise<{ id: string } | { error: st
     return { error: 'THREADS_ACCESS_TOKEN または THREADS_USER_ID が未設定です' }
   }
 
-  // Step 1: Create media container
+  // Step 1: Create media container — use URL query params (Meta Graph API standard)
   const containerUrl = `https://graph.threads.net/v1.0/${userId}/threads`
-  const containerRes = await fetch(containerUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ media_type: 'TEXT', text, access_token: accessToken }),
-  })
+  const containerParams = new URLSearchParams({ media_type: 'TEXT', text, access_token: accessToken })
+  const containerRes = await fetch(`${containerUrl}?${containerParams.toString()}`, { method: 'POST' })
   const container = await containerRes.json() as { id?: string; error?: { message: string } }
   if (!container.id) {
     return { error: container.error?.message || 'コンテナ作成に失敗' }
@@ -24,11 +21,8 @@ async function postToThreads(text: string): Promise<{ id: string } | { error: st
   // Step 2: Wait 1s then publish
   await new Promise(r => setTimeout(r, 1000))
   const publishUrl = `https://graph.threads.net/v1.0/${userId}/threads_publish`
-  const publishRes = await fetch(publishUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ creation_id: container.id, access_token: accessToken }),
-  })
+  const publishParams = new URLSearchParams({ creation_id: container.id, access_token: accessToken })
+  const publishRes = await fetch(`${publishUrl}?${publishParams.toString()}`, { method: 'POST' })
   const published = await publishRes.json() as { id?: string; error?: { message: string } }
   if (!published.id) {
     return { error: published.error?.message || '公開に失敗' }

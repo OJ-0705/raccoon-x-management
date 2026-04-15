@@ -178,6 +178,9 @@ export default function PostCard({ post, onDelete, onRefresh }: PostCardProps) {
       const data = await res.json()
       if (!data.success && !data.partial) {
         alert(data.errors?.join('\n') || '投稿に失敗しました')
+      } else if (data.partial && data.errors?.length) {
+        alert(`⚠️ 一部のプラットフォームへの投稿が失敗しました:\n${data.errors.join('\n')}\n\n成功分は投稿済みです。`)
+        onRefresh?.()
       } else {
         onRefresh?.()
       }

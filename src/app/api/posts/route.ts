@@ -65,6 +65,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
+
+    if (typeof body.content === 'string' && body.content.includes('\uFFFD')) {
+      return NextResponse.json(
+        { error: 'テキストに文字化け（U+FFFD）が検出されました。UTF-8で保存されたテキストを使用してください' },
+        { status: 400 }
+      )
+    }
+
     const post = await prisma.post.create({
       data: {
         content: body.content,

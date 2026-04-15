@@ -43,6 +43,15 @@ export async function POST(req: NextRequest) {
         continue
       }
 
+      // Reject content containing Unicode Replacement Characters (U+FFFD).
+      // These appear when Shift-JIS (or other non-UTF-8) encoded files are
+      // mistakenly read as UTF-8, permanently destroying the original text.
+      if (item.content.includes('\uFFFD')) {
+        errors.push(`[${i}] テキストに文字化け（U+FFFD）が検出されました。ファイルをUTF-8で保存してから再インポートしてください`)
+        skipped++
+        continue
+      }
+
       if (!item.postType || !item.scheduledAt) {
         errors.push(`[${i}] postType または scheduledAt が欠落しています`)
         skipped++
