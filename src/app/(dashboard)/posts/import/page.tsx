@@ -67,22 +67,28 @@ export default function ImportPage() {
     setParseError('')
     try {
       const raw = JSON.parse(text)
-      if (!Array.isArray(raw)) {
-        setParseError('JSONは配列（[...]）である必要があります')
+      let postsArray: Record<string, unknown>[]
+      if (Array.isArray(raw)) {
+        postsArray = raw as Record<string, unknown>[]
+      } else if (raw && typeof raw === 'object' && Array.isArray((raw as Record<string, unknown>).posts)) {
+        postsArray = (raw as Record<string, unknown>).posts as Record<string, unknown>[]
+      } else {
+        setParseError('JSONはpostsフィールドを持つオブジェクトか配列である必要があります')
         return
       }
-      const items: ImportPost[] = raw.map((item: Record<string, unknown>, i: number) => {
+      const items: ImportPost[] = postsArray.map((item: Record<string, unknown>, i: number) => {
         const warns: string[] = []
         if (!item.content || !(item.content as string).trim()) warns.push('contentが空です')
         if (!item.postToX && !item.postToThreads) warns.push('postToX・postToThreadsが両方falseです')
         if (item.scheduledAt && isPastDate(item.scheduledAt as string)) warns.push('過去日時のため「下書き」で登録されます')
+        // 必要なフィールドのみ抽出（id/draft_no等の余分フィールドは無視）
         return {
           content: (item.content as string) || '',
           postType: (item.postType as string) || 'その他',
           scheduledAt: (item.scheduledAt as string) || '',
           postToX: item.postToX !== false,
           postToThreads: item.postToThreads !== false,
-          source: item.source as string | undefined,
+          source: (item.source as string) || undefined,
           _content: (item.content as string) || '',
           _postType: (item.postType as string) || 'その他',
           _scheduledAt: (item.scheduledAt as string) || '',
@@ -241,7 +247,7 @@ export default function ImportPage() {
               rows={10}
               className="w-full px-4 py-3 rounded-xl text-slate-200 text-sm font-mono resize-none focus:outline-none"
               style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
-              placeholder={'[\n  {\n    "content": "投稿本文",\n    "postType": "数値比較型",\n    "scheduledAt": "2026-04-13T21:00:00+09:00",\n    "postToX": true,\n    "postToThreads": true,\n    "source": "xmcp-dashboard"\n  }\n]'}
+              placeholder={'// 配列形式\n[\n  {\n    "content": "投稿本文",\n    "postType": "数値比較型",\n    "scheduledAt": "2026-04-13T21:00:00+09:00",\n    "postToX": true,\n    "postToThreads": true\n  }\n]\n\n// またはXMCPダッシュボード出力形式\n{\n  "exported_at": "...",\n  "posts": [ ... ]\n}'}
             />
           </div>
 
