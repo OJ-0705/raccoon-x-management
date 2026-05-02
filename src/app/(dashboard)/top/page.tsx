@@ -164,9 +164,16 @@ export default function TopPage() {
     }
   }, [loadPosts])
 
+  const handleGenerateClick = useCallback(() => {
+    if (generating) return
+    const ok = window.confirm('AIで投稿を生成します（Anthropic APIを消費します）。実行しますか？')
+    if (!ok) return
+    generate()
+  }, [generate, generating])
+
   useEffect(() => {
-    loadPosts().then(() => generate())
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    loadPosts()
+  }, [loadPosts])
 
   const handleApprove = (post: Post) => setSchedulePost(post)
 
@@ -184,7 +191,6 @@ export default function TopPage() {
         }),
       })
       await loadPosts()
-      generate()
     } finally {
       setApproving(null)
     }
@@ -194,7 +200,6 @@ export default function TopPage() {
     try {
       await fetch(`/api/posts/${postId}`, { method: 'DELETE' })
       await loadPosts()
-      generate()
     } catch (err) {
       console.error(err)
     }
@@ -280,25 +285,26 @@ export default function TopPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">🏠 トップ</h1>
-          <p className="text-slate-400 text-xs mt-0.5">AIが生成した承認待ち投稿案 — 1日3投稿（朝7時・昼12時・夜21時）推奨</p>
+          <p className="text-slate-400 text-xs mt-0.5">承認待ちの投稿一覧 — 投稿生成は通常XMCPダッシュボード側で行います</p>
         </div>
         <button
-          onClick={generate}
+          onClick={handleGenerateClick}
           disabled={generating}
-          className="px-3 py-1.5 disabled:opacity-50 text-slate-300 rounded-xl text-xs transition-all"
-          style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
+          title="AIで投稿を生成（補助機能・通常はXMCPダッシュボードを利用）"
+          className="px-2.5 py-1 disabled:opacity-50 text-slate-500 hover:text-slate-300 rounded-lg text-[11px] transition-all"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
         >
-          {generating ? '生成中...' : '🔄 再生成'}
+          {generating ? '生成中...' : '🔄 投稿を生成'}
         </button>
       </div>
 
       {/* Status bar */}
       <div className="flex items-center gap-3 rounded-xl px-4 py-2.5" style={glass}>
-        <div className={`w-2 h-2 rounded-full ${posts.length >= 15 ? 'bg-green-400' : posts.length > 0 ? 'bg-yellow-400' : 'bg-red-400'}`} />
+        <div className={`w-2 h-2 rounded-full ${posts.length >= 15 ? 'bg-green-400' : posts.length > 0 ? 'bg-yellow-400' : 'bg-slate-500'}`} />
         <span className="text-xs text-slate-300">
-          承認待ち: <span className="text-white font-bold">{posts.length}</span> / 15件
+          承認待ち: <span className="text-white font-bold">{posts.length}</span> 件
         </span>
-        {generating && <span className="text-xs text-orange-400 ml-auto">投稿案を生成中...</span>}
+        {generating && <span className="text-xs text-orange-400 ml-auto">投稿を生成中...</span>}
       </div>
 
       {/* Posts — 3-column grid */}
@@ -375,15 +381,9 @@ export default function TopPage() {
         </div>
       ) : (
         <div className="rounded-xl p-10 text-center" style={glass}>
-          <div className="text-4xl mb-3">🤖</div>
-          <p className="text-slate-400 text-sm mb-3">承認待ちの投稿案がありません</p>
-          <button
-            onClick={generate}
-            disabled={generating}
-            className="px-4 py-2 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-xl text-sm transition-all"
-          >
-            {generating ? '生成中...' : 'AIで投稿案を生成'}
-          </button>
+          <div className="text-4xl mb-3">📭</div>
+          <p className="text-slate-400 text-sm mb-1">承認待ちの投稿はありません</p>
+          <p className="text-slate-600 text-xs">通常はXMCPダッシュボードから投稿を生成してください</p>
         </div>
       )}
 
@@ -394,7 +394,7 @@ export default function TopPage() {
           postType={schedulePost.postType}
           defaultScheduledAt={schedulePost.scheduledAt}
           onClose={() => setSchedulePost(null)}
-          onScheduled={() => { setSchedulePost(null); loadPosts(); generate() }}
+          onScheduled={() => { setSchedulePost(null); loadPosts() }}
           confirmLabel="この日時で承認"
         />
       )}
