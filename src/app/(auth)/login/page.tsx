@@ -6,11 +6,10 @@ import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('admin@raccoon.com')
-  const [password, setPassword] = useState('Raccoon2026!')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [seeding, setSeeding] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -18,12 +17,7 @@ export default function LoginPage() {
     setError('')
 
     try {
-      const result = await signIn('credentials', {
-        email,
-        password,
-        redirect: false,
-      })
-
+      const result = await signIn('credentials', { email, password, redirect: false })
       if (result?.error) {
         setError('メールアドレスまたはパスワードが正しくありません')
       } else {
@@ -37,93 +31,62 @@ export default function LoginPage() {
     }
   }
 
-  const handleSeed = async () => {
-    setSeeding(true)
-    try {
-      const res = await fetch('/api/seed', { method: 'POST' })
-      const data = await res.json()
-      if (data.success) {
-        setError('')
-        alert('初期データのセットアップが完了しました。ログインしてください。')
-      } else {
-        setError('セットアップに失敗しました: ' + data.error)
-      }
-    } catch {
-      setError('セットアップに失敗しました')
-    } finally {
-      setSeeding(false)
-    }
-  }
-
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+    <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="text-6xl mb-3">🍊</div>
-          <h1 className="text-2xl font-bold text-white">らくーん</h1>
-          <p className="text-gray-400 text-sm mt-1">X自動運用管理システム</p>
+        <div className="mb-8 text-center">
+          <div className="mb-3 text-6xl">🛰️</div>
+          <h1 className="text-2xl font-bold text-white">x-ops</h1>
+          <p className="mt-1 text-sm text-slate-500">X / Threads 運用オペレーション</p>
         </div>
 
-        {/* Card */}
-        <div className="bg-gray-800 rounded-2xl p-8 border border-gray-700 shadow-xl">
-          <h2 className="text-lg font-bold text-white mb-6">ログイン</h2>
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-8 backdrop-blur-xl">
+          <h2 className="mb-6 text-lg font-bold text-white">ログイン</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1.5">メールアドレス</label>
+              <label className="mb-1.5 block text-sm text-slate-400">メールアドレス</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors text-sm"
-                placeholder="admin@raccoon.com"
+                autoComplete="username"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-colors focus:border-orange-500/50"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm text-gray-400 mb-1.5">パスワード</label>
+              <label className="mb-1.5 block text-sm text-slate-400">パスワード</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors text-sm"
+                autoComplete="current-password"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-colors focus:border-orange-500/50"
                 placeholder="••••••••"
                 required
               />
             </div>
 
             {error && (
-              <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-xl text-sm">
-                {error}
-              </div>
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>
             )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-800 text-white font-bold rounded-xl transition-colors text-sm"
+              className="w-full rounded-xl bg-orange-500 py-3 text-sm font-bold text-white transition-colors hover:bg-orange-400 disabled:opacity-40"
             >
-              {loading ? 'ログイン中...' : 'ログイン'}
+              {loading ? 'ログイン中…' : 'ログイン'}
             </button>
           </form>
 
-          <div className="mt-4 pt-4 border-t border-gray-700">
-            <p className="text-xs text-gray-500 mb-2 text-center">初回セットアップ</p>
-            <button
-              onClick={handleSeed}
-              disabled={seeding}
-              className="w-full py-2.5 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-gray-300 font-medium rounded-xl transition-colors text-sm"
-            >
-              {seeding ? 'セットアップ中...' : '初期データをセットアップ'}
-            </button>
-          </div>
+          <p className="mt-4 border-t border-white/[0.07] pt-4 text-center text-xs leading-relaxed text-slate-600">
+            まだユーザーがいない場合は、環境変数 ADMIN_EMAIL / ADMIN_PASSWORD の値で
+            初回ログイン時に管理ユーザーが作成されます。
+          </p>
         </div>
-
-        <p className="text-center text-xs text-gray-600 mt-4">
-          らくーん🍊 X自動運用管理システム v1.0
-        </p>
       </div>
     </div>
   )

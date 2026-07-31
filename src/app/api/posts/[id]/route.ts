@@ -1,83 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { PostStatus } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params
-    const post = await prisma.post.findUnique({ where: { id } })
-    if (!post) return NextResponse.json({ error: '投稿が見つかりません' }, { status: 404 })
-    return NextResponse.json(post)
-  } catch (error) {
-    console.error(error)
-    return NextResponse.json({ error: '投稿の取得に失敗しました' }, { status: 500 })
-  }
+export const dynamic = 'force-dynamic'
+
+const STATUSES: PostStatus[] = ['DRAFT', 'REVIEWED', 'SCHEDULED', 'PUBLISHED', 'FAILED', 'ARCHIVED']
+
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const post = await prisma.post.findUnique({
+    where: { id },
+    include: { metrics: { orderBy: { fetchDate: 'asc' } } },
+  })
+  if (!post) return NextResponse.json({ error: 'not found' }, { status: 404 })
+  return NextResponse.json({ post })
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params
-    const body = await req.json()
+  const { id } = await params
+  const body = await req.json()
 
-    if (typeof body.content === 'string' && body.content.includes('\uFFFD')) {
-      return NextResponse.json(
-        { error: 'テキストに文字化け（U+FFFD）が検出されました。UTF-8で保存されたテキストを使用してください' },
-        { status: 400 }
-      )
-    }
+  const existing = await prisma.post.findUnique({ where: { id } })
+  if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 })
 
-    const data: Record<string, unknown> = {}
-    if (body.status !== undefined) data.status = body.status
-    if (body.scheduledAt !== undefined) data.scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null
-    if (body.content !== undefined) data.content = body.content
-    if (body.platform !== undefined) data.platform = body.platform
-    if (body.isFavorite !== undefined) data.isFavorite = body.isFavorite
-    if (body.imageUrls !== undefined) data.imageUrls = body.imageUrls ? JSON.stringify(body.imageUrls) : null
-    const post = await prisma.post.update({ where: { id }, data })
-    return NextResponse.json(post)
-  } catch (error) {
-    console.error(error)
-    return NextResponse.json({ error: '投稿の更新に失敗しました' }, { status: 500 })
+  if (existing.status === 'PUBLISHED' && body.content && body.content !== existing.content) {
+    return NextResponse.json({ error: '投稿済みの本文は変更できません' }, { status: 400 })
   }
-}
 
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params
-    const body = await req.json()
-    const post = await prisma.post.update({
-      where: { id },
-      data: {
-        content: body.content,
-        postType: body.postType,
-        formatType: body.formatType,
-        status: body.status,
-        scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : null,
-        imageUrls: body.imageUrls ? JSON.stringify(body.imageUrls) : null,
-        hashtags: body.hashtags ? JSON.stringify(body.hashtags) : null,
-        threadPosts: body.threadPosts ? JSON.stringify(body.threadPosts) : null,
-        impressions: body.impressions,
-        likes: body.likes,
-        retweets: body.retweets,
-        replies: body.replies,
-        bookmarks: body.bookmarks,
-        xPostId: body.xPostId,
-        postedAt: body.postedAt ? new Date(body.postedAt) : undefined,
-      },
-    })
-    return NextResponse.json(post)
-  } catch (error) {
-    console.error(error)
-    return NextResponse.json({ error: '投稿の更新に失敗しました' }, { status: 500 })
+  const data: Record<string, unknown> = {}
+  if (body.content !== undefined) data.content = body.content
+  if (body.status !== undefined && STATUSES.includes(body.status)) data.status = body.status
+  if (body.postType !== undefined) data.postType = body.postType
+  if (body.hashtags !== undefined) data.hashtags = body.hashtags
+  if (body.postToX !== undefined) data.postToX = body.postToX
+  if (body.postToThreads !== undefined) data.postToThreads = body.postToThreads
+  if (body.isFavorite !== undefined) data.isFavorite = body.isFavorite
+  if (body.theme !== undefined) data.dedupeTheme = body.theme
+  if (body.message !== undefined) data.dedupeMessage = body.message
+  if (body.entities !== undefined) data.dedupeEntities = body.entities?.length ? JSON.stringify(body.entities) : null
+  if (body.mediaUrls !== undefined) data.mediaUrls = body.mediaUrls?.length ? JSON.stringify(body.mediaUrls.slice(0, 4)) : null
+  if (body.scheduledAt !== undefined) {
+    data.scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null
+    if (body.scheduledAt && existing.status === 'DRAFT') data.status = 'SCHEDULED'
   }
+
+  const post = await prisma.post.update({ where: { id }, data })
+  return NextResponse.json({ post })
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params
+  const { id } = await params
+  const hard = new URL(req.url).searchParams.get('hard') === 'true'
+
+  const existing = await prisma.post.findUnique({ where: { id } })
+  if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 })
+
+  if (hard && existing.status !== 'PUBLISHED') {
     await prisma.post.delete({ where: { id } })
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error(error)
-    return NextResponse.json({ error: '投稿の削除に失敗しました' }, { status: 500 })
+    return NextResponse.json({ ok: true, deleted: 'hard' })
   }
+
+  await prisma.post.update({ where: { id }, data: { status: 'ARCHIVED', scheduledAt: null } })
+  return NextResponse.json({ ok: true, deleted: 'archived' })
 }

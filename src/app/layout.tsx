@@ -9,8 +9,8 @@ const bizUdpGothic = BIZ_UDPGothic({
 })
 
 export const metadata: Metadata = {
-  title: 'らくーん🍊 X自動運用管理システム',
-  description: 'X（Twitter）の自動投稿・管理システム',
+  title: 'x-ops — X / Threads 運用オペレーション',
+  description: 'X（Twitter）とThreadsの投稿管理・予約・実績・APIコスト管理',
 }
 
 export default function RootLayout({

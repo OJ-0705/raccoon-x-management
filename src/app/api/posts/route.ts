@@ -1,95 +1,72 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { PostStatus } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { getActiveAccount } from '@/lib/account'
+import { checkDuplicate } from '@/lib/dedupe'
+
+export const dynamic = 'force-dynamic'
+
+const STATUSES: PostStatus[] = ['DRAFT', 'REVIEWED', 'SCHEDULED', 'PUBLISHED', 'FAILED', 'ARCHIVED']
 
 export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url)
-    const status = searchParams.get('status')
-    const postType = searchParams.get('postType')
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '20')
-    const skip = (page - 1) * limit
+  const { searchParams } = new URL(req.url)
+  const account = await getActiveAccount()
 
-    const sort = searchParams.get('sort')
-    const days = searchParams.get('days')
+  const statusParam = searchParams.get('status')
+  const statuses = statusParam
+    ? statusParam.split(',').filter((s): s is PostStatus => STATUSES.includes(s as PostStatus))
+    : []
 
-    const platform = searchParams.get('platform')
+  const posts = await prisma.post.findMany({
+    where: {
+      accountId: account.id,
+      ...(statuses.length ? { status: { in: statuses } } : {}),
+      ...(searchParams.get('q') ? { content: { contains: searchParams.get('q') as string, mode: 'insensitive' } } : {}),
+    },
+    orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'desc' }],
+    take: Number(searchParams.get('limit') ?? 100),
+  })
 
-    const where: Record<string, unknown> = {}
-    if (status) where.status = status
-    if (postType) where.postType = postType
-    if (platform === 'threads') where.platform = { in: ['threads', 'both'] }
-    else if (platform) where.platform = platform
-    if (days) {
-      const since = new Date()
-      since.setDate(since.getDate() - parseInt(days))
-      where.createdAt = { gte: since }
-    }
-
-    if (sort === 'engagement') {
-      const all = await prisma.post.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        take: 200,
-      })
-      all.sort((a, b) => {
-        const scoreA = a.likes + a.retweets * 2 + a.replies + a.bookmarks * 3
-        const scoreB = b.likes + b.retweets * 2 + b.replies + b.bookmarks * 3
-        return scoreB - scoreA
-      })
-      const posts = all.slice(skip, skip + limit)
-      return NextResponse.json({ posts, total: all.length, page, limit })
-    }
-
-    const orderBy = status === '予約済み'
-      ? { scheduledAt: 'asc' as const }
-      : { createdAt: 'desc' as const }
-
-    const [posts, total] = await Promise.all([
-      prisma.post.findMany({
-        where,
-        orderBy,
-        skip,
-        take: limit,
-      }),
-      prisma.post.count({ where }),
-    ])
-
-    return NextResponse.json({ posts, total, page, limit })
-  } catch (error) {
-    console.error(error)
-    return NextResponse.json({ error: '投稿一覧の取得に失敗しました' }, { status: 500 })
-  }
+  return NextResponse.json({ posts })
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json()
-
-    if (typeof body.content === 'string' && body.content.includes('\uFFFD')) {
-      return NextResponse.json(
-        { error: 'テキストに文字化け（U+FFFD）が検出されました。UTF-8で保存されたテキストを使用してください' },
-        { status: 400 }
-      )
-    }
-
-    const post = await prisma.post.create({
-      data: {
-        content: body.content,
-        postType: body.postType,
-        formatType: body.formatType || 'テキスト',
-        status: body.status || '下書き',
-        scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : null,
-        imageUrls: body.imageUrls ? JSON.stringify(body.imageUrls) : null,
-        hashtags: body.hashtags ? JSON.stringify(body.hashtags) : null,
-        threadPosts: body.threadPosts ? JSON.stringify(body.threadPosts) : null,
-        parentPostId: body.parentPostId || null,
-        platform: body.platform || 'both',
-      },
-    })
-    return NextResponse.json(post, { status: 201 })
-  } catch (error) {
-    console.error(error)
-    return NextResponse.json({ error: '投稿の作成に失敗しました' }, { status: 500 })
+  const body = await req.json()
+  if (!body.content || typeof body.content !== 'string') {
+    return NextResponse.json({ error: '本文が空です' }, { status: 400 })
   }
+
+  const account = await getActiveAccount()
+
+  if (!body.skipDuplicateCheck) {
+    const dup = await checkDuplicate({
+      accountId: account.id,
+      content: body.content,
+      theme: body.theme,
+      message: body.message,
+      entities: body.entities,
+    })
+    if (dup.isDuplicate) {
+      return NextResponse.json({ error: '既出ネタと重複しています', hits: dup.hits }, { status: 409 })
+    }
+  }
+
+  const post = await prisma.post.create({
+    data: {
+      accountId: account.id,
+      content: body.content,
+      status: (STATUSES.includes(body.status) ? body.status : 'DRAFT') as PostStatus,
+      postType: body.postType ?? null,
+      mediaUrls: Array.isArray(body.mediaUrls) && body.mediaUrls.length ? JSON.stringify(body.mediaUrls.slice(0, 4)) : null,
+      hashtags: body.hashtags ?? null,
+      postToX: body.postToX ?? true,
+      postToThreads: body.postToThreads ?? false,
+      dedupeTheme: body.theme ?? null,
+      dedupeMessage: body.message ?? null,
+      dedupeEntities: Array.isArray(body.entities) && body.entities.length ? JSON.stringify(body.entities) : null,
+      scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : null,
+    },
+  })
+
+  return NextResponse.json({ post }, { status: 201 })
 }

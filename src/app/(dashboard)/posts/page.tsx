@@ -1,247 +1,111 @@
-'use client'
-
-import { Suspense, useEffect, useState, useCallback } from 'react'
-import { useSearchParams } from 'next/navigation'
-import PostCard from '@/components/PostCard'
 import Link from 'next/link'
+import type { PostStatus } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
+import { getActiveAccount } from '@/lib/account'
+import { BTN_GHOST, BTN_PRIMARY, Empty, PageTitle, Panel, StatusBadge } from '@/components/ui'
 
-interface Post {
-  id: string
-  content: string
-  postType: string
-  formatType: string
-  status: string
-  scheduledAt?: string | null
-  postedAt?: string | null
-  impressions: number
-  likes: number
-  retweets: number
-  replies: number
-  bookmarks: number
-  createdAt: string
-}
+export const dynamic = 'force-dynamic'
 
-const STATUSES = ['すべて', '予約済み', '投稿済み', '下書き', '失敗']
-const POST_TYPES = ['すべて', 'コンビニまとめ型', '数値比較型', '地雷暴露型', 'プロセス共有型', 'あるある共感型', 'チェックリスト保存型', 'Instagram連携型', 'その他']
+const TABS: Array<{ key: string; label: string; statuses: PostStatus[] }> = [
+  { key: 'all', label: 'すべて', statuses: [] },
+  { key: 'draft', label: '下書き', statuses: ['DRAFT', 'REVIEWED'] },
+  { key: 'scheduled', label: '予約済', statuses: ['SCHEDULED'] },
+  { key: 'published', label: '投稿済', statuses: ['PUBLISHED'] },
+  { key: 'failed', label: '失敗', statuses: ['FAILED'] },
+  { key: 'archived', label: '見送り', statuses: ['ARCHIVED'] },
+]
 
-function PostsContent() {
-  const searchParams = useSearchParams()
-  const [posts, setPosts] = useState<Post[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '予約済み')
-  const [typeFilter, setTypeFilter] = useState('すべて')
-  const [page, setPage] = useState(1)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [cronRunning, setCronRunning] = useState(false)
-  const [cronResult, setCronResult] = useState<string | null>(null)
+const jst = (d: Date | null) =>
+  d ? new Date(d.getTime() + 9 * 3600000).toISOString().slice(0, 16).replace('T', ' ') : '—'
 
-  const runCron = async () => {
-    setCronRunning(true)
-    setCronResult(null)
-    try {
-      const res = await fetch('/api/cron/publish')
-      const data = await res.json()
-      if (data.posted > 0) {
-        setCronResult(`✅ ${data.posted}件を投稿しました`)
-      } else {
-        setCronResult('ℹ️ 投稿対象なし（予約時刻を過ぎた予約済み投稿がありません）')
-      }
-      fetchPosts()
-    } catch {
-      setCronResult('❌ 実行エラー')
-    } finally {
-      setCronRunning(false)
-    }
-  }
+export default async function PostsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const { tab = 'all' } = await searchParams
+  const active = TABS.find((t) => t.key === tab) ?? TABS[0]
+  const account = await getActiveAccount()
 
-  const fetchPosts = useCallback(async () => {
-    setLoading(true)
-    const params = new URLSearchParams()
-    if (statusFilter !== 'すべて') params.set('status', statusFilter)
-    if (typeFilter !== 'すべて') params.set('postType', typeFilter)
-    params.set('page', page.toString())
-    params.set('limit', '12')
-
-    try {
-      const res = await fetch(`/api/posts?${params}`)
-      const data = await res.json()
-      setPosts(data.posts || [])
-      setTotal(data.total || 0)
-    } catch (error) {
-      console.error(error)
-    } finally {
-      setLoading(false)
-    }
-  }, [statusFilter, typeFilter, page])
-
-  useEffect(() => {
-    fetchPosts()
-  }, [fetchPosts])
-
-  const handleDelete = async (id: string) => {
-    if (deletingId) return
-    if (!confirm('この投稿を削除しますか？')) return
-    setDeletingId(id)
-    try {
-      await fetch(`/api/posts/${id}`, { method: 'DELETE' })
-      fetchPosts()
-    } catch (error) {
-      console.error(error)
-    } finally {
-      setDeletingId(null)
-    }
-  }
-
-  const totalPages = Math.ceil(total / 12)
+  const posts = await prisma.post.findMany({
+    where: {
+      accountId: account.id,
+      ...(active.statuses.length ? { status: { in: active.statuses } } : {}),
+    },
+    orderBy: [{ scheduledAt: 'desc' }, { createdAt: 'desc' }],
+    take: 100,
+  })
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">投稿管理</h1>
-          <p className="text-slate-400 text-sm mt-1">全{total}件</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex flex-col items-center gap-0.5">
-            <button
-              onClick={runCron}
-              disabled={cronRunning}
-              className="px-4 py-2 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
-              style={{ background: cronRunning ? 'rgba(255,255,255,0.1)' : 'rgba(59,130,246,0.7)' }}
-              title="予約時刻を過ぎた予約済み投稿を今すぐ送信"
-            >
-              {cronRunning ? '⏳ 実行中...' : '🚀 手動実行'}
-            </button>
-            <span className="text-[10px] text-slate-500">予約時刻を過ぎた投稿を今すぐ実行</span>
-          </div>
-          <Link
-            href="/posts/new"
-            className="px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-sm font-medium transition-colors"
-          >
-            ✏️ 新規投稿
+    <>
+      <PageTitle
+        title="投稿管理"
+        description={`${posts.length}件を表示中`}
+        action={
+          <Link href="/posts/new" className={BTN_PRIMARY}>
+            新規投稿
           </Link>
-        </div>
-      </div>
-      {cronResult && (
-        <div className="px-4 py-2 rounded-xl text-sm text-white" style={{ background: 'rgba(255,255,255,0.08)' }}>
-          {cronResult}
-        </div>
-      )}
+        }
+      />
 
-      {/* Filters */}
-      <div className="space-y-3">
-        {/* Status Filter */}
-        <div className="flex gap-2 flex-wrap">
-          {STATUSES.map(s => (
-            <button
-              key={s}
-              onClick={() => { setStatusFilter(s); setPage(1) }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                statusFilter === s
-                  ? 'bg-orange-500 text-white'
-                  : 'text-slate-400'
-              }`}
-              style={statusFilter === s ? {} : { background: 'rgba(255,255,255,0.08)' }}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-
-        {/* Type Filter */}
-        <div className="flex gap-2 flex-wrap">
-          {POST_TYPES.map(t => (
-            <button
-              key={t}
-              onClick={() => { setTypeFilter(t); setPage(1) }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                typeFilter === t
-                  ? 'text-white'
-                  : 'text-slate-400'
-              }`}
-              style={typeFilter === t
-                ? { background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)' }
-                : { background: 'rgba(255,255,255,0.08)' }
-              }
-            >
-              {t}
-            </button>
-          ))}
-        </div>
+      <div className="mb-4 flex flex-wrap gap-1.5">
+        {TABS.map((t) => (
+          <Link
+            key={t.key}
+            href={`/posts?tab=${t.key}`}
+            className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition-all ${
+              t.key === active.key
+                ? 'border-orange-500/30 bg-orange-500/20 text-orange-300'
+                : 'border-white/10 text-slate-400 hover:bg-white/[0.06] hover:text-white'
+            }`}
+          >
+            {t.label}
+          </Link>
+        ))}
       </div>
 
-      {/* Posts Grid */}
-      {loading ? (
-        <div className="flex items-center justify-center h-48">
-          <div className="text-slate-400">読み込み中...</div>
-        </div>
-      ) : posts.length > 0 ? (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {posts.map(post => (
-              <PostCard
-                key={post.id}
-                post={post}
-                onDelete={handleDelete}
-                onRefresh={fetchPosts}
-              />
-            ))}
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2">
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="px-3 py-1.5 disabled:opacity-50 text-slate-300 rounded-lg text-sm"
-                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
-              >
-                ←
-              </button>
-              <span className="text-sm text-slate-400">
-                {page} / {totalPages}
-              </span>
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="px-3 py-1.5 disabled:opacity-50 text-slate-300 rounded-lg text-sm"
-                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
-              >
-                →
-              </button>
-            </div>
-          )}
-        </>
+      {posts.length === 0 ? (
+        <Empty message="該当する投稿がありません" />
       ) : (
-        <div
-          className="rounded-2xl p-12 text-center"
-          style={{ background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.08)' }}
-        >
-          <div className="text-5xl mb-4">📭</div>
-          <p className="text-slate-400">投稿が見つかりません</p>
-          <Link
-            href="/posts/new"
-            className="inline-block mt-4 px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-sm transition-colors"
-          >
-            新規投稿を作成
-          </Link>
+        <div className="space-y-2.5">
+          {posts.map((p) => (
+            <Panel key={p.id} className="!p-4">
+              <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <StatusBadge status={p.status} />
+                {p.postType && <span className="rounded-lg border border-white/10 px-2 py-0.5">{p.postType}</span>}
+                <span>{[p.postToX && 'X', p.postToThreads && 'Threads'].filter(Boolean).join(' + ') || '配信先なし'}</span>
+                <span className="tabular-nums">
+                  {p.status === 'PUBLISHED' ? `投稿 ${jst(p.postedAt)}` : p.scheduledAt ? `予約 ${jst(p.scheduledAt)}` : `作成 ${jst(p.createdAt)}`}
+                </span>
+                <span className="ml-auto tabular-nums">{[...p.content].length}文字</span>
+              </div>
+
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{p.content}</p>
+
+              {p.lastError && <p className="mt-2 text-xs text-red-400">エラー: {p.lastError}</p>}
+
+              <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-white/[0.06] pt-3 text-xs tabular-nums text-slate-500">
+                {p.status === 'PUBLISHED' && (
+                  <>
+                    <span>👁 {p.impressions.toLocaleString()}</span>
+                    <span>♡ {p.likes}</span>
+                    <span>↺ {p.reposts}</span>
+                    <span>💬 {p.replies}</span>
+                    <span>🔖 {p.bookmarks}</span>
+                    <span>ER {(p.engagementRate * 100).toFixed(2)}%</span>
+                  </>
+                )}
+                <div className="ml-auto flex gap-2">
+                  {p.xPostId && (
+                    <a href={`https://x.com/i/status/${p.xPostId}`} target="_blank" rel="noreferrer" className={`${BTN_GHOST} !px-2.5 !py-1`}>
+                      Xで見る
+                    </a>
+                  )}
+                  <Link href={`/posts/${p.id}/edit`} className={`${BTN_GHOST} !px-2.5 !py-1`}>
+                    編集
+                  </Link>
+                </div>
+              </div>
+            </Panel>
+          ))}
         </div>
       )}
-    </div>
-  )
-}
-
-export default function PostsPage() {
-  return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center h-64">
-        <div className="text-slate-400">読み込み中...</div>
-      </div>
-    }>
-      <PostsContent />
-    </Suspense>
+    </>
   )
 }

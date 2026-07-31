@@ -1,30 +1,48 @@
+import { NextResponse } from 'next/server'
+import { put } from '@vercel/blob'
+
+/**
+ * 画像をVercel Blobへ上げて公開URLを返す。
+ * data: URL をDBに持つとレコードが肥大化し、Threadsは公開URLしか受け付けないので、
+ * アップロード先はBlobに一本化している。
+ */
+
+export const maxDuration = 60
+
+const MAX_BYTES = 5 * 1024 * 1024
+
 export async function POST(request: Request) {
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
+    const formData = await request.formData()
+    const file = formData.get('file')
 
-    if (!file) {
-      return Response.json({ error: 'ファイルが選択されていません' }, { status: 400 });
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: 'ファイルが選択されていません' }, { status: 400 })
+    }
+    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+      return NextResponse.json({ error: '画像または動画を選択してください' }, { status: 400 })
+    }
+    if (file.size > MAX_BYTES) {
+      return NextResponse.json({ error: '5MB以下のファイルを選択してください' }, { status: 400 })
     }
 
-    // 画像のみ許可（動画は非対応）
-    if (!file.type.startsWith('image/')) {
-      return Response.json({ error: '画像ファイルのみ対応しています' }, { status: 400 });
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return NextResponse.json(
+        { error: 'BLOB_READ_WRITE_TOKEN が未設定です。Vercel Blobを有効化してください。' },
+        { status: 500 },
+      )
     }
 
-    // 5MB制限
-    if (file.size > 5 * 1024 * 1024) {
-      return Response.json({ error: '5MB以下の画像を選択してください' }, { status: 400 });
-    }
+    const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : ''
+    const blob = await put(`posts/${Date.now()}${ext}`, file, {
+      access: 'public',
+      contentType: file.type,
+      addRandomSuffix: true,
+    })
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const base64 = buffer.toString('base64');
-    const dataUrl = `data:${file.type};base64,${base64}`;
-
-    return Response.json({ url: dataUrl });
+    return NextResponse.json({ url: blob.url, contentType: file.type, size: file.size })
   } catch (error) {
-    console.error('Upload error:', error);
-    return Response.json({ error: 'アップロードに失敗しました: ' + String(error) }, { status: 500 });
+    console.error('[upload]', error)
+    return NextResponse.json({ error: 'アップロードに失敗しました: ' + String(error) }, { status: 500 })
   }
 }

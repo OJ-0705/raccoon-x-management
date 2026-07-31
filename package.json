@@ -1,29 +1,32 @@
 {
-  "name": "raccoon-x-management",
-  "version": "0.1.0",
+  "name": "x-ops",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3001",
-    "build": "prisma generate && next build",
-    "vercel-build": "prisma generate && prisma migrate resolve --applied 20260315000000_init || true && prisma migrate deploy || true && next build",
+    "dev": "xmcp build && next dev -p 3001",
+    "build": "prisma generate && xmcp build && next build",
+    "vercel-build": "prisma generate && prisma migrate deploy && xmcp build && next build",
     "start": "next start",
+    "mcp:build": "xmcp build",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "cron:test": "node -e \"fetch('http://localhost:3001/api/cron/publish').then(r=>r.json()).then(d=>console.log(JSON.stringify(d,null,2))).catch(e=>console.error(e))\""
+    "cron:test": "node -e \"fetch('http://localhost:3001/api/cron/publish',{headers:{authorization:'Bearer '+process.env.CRON_SECRET}}).then(r=>r.json()).then(d=>console.log(JSON.stringify(d,null,2))).catch(e=>console.error(e))\""
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.5.0",
-    "@prisma/client": "^7.5.0",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
     "@types/bcryptjs": "^2.4.6",
     "@vercel/blob": "^2.3.3",
     "bcryptjs": "^3.0.3",
     "next": "16.1.6",
     "next-auth": "^4.24.13",
     "pg": "^8.13.3",
-    "prisma": "^7.5.0",
+    "prisma": "^7.9.1",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "xmcp": "^0.6.13",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

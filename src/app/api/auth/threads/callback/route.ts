@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
     const finalToken = longData.access_token || tokenData.access_token
     const userId = tokenData.user_id
 
-    // Save credentials to DB so poster.ts can use them without Vercel env var update
+    // 取得したトークンはDBに保存する。Vercelの環境変数を更新しなくても threads-api.ts が拾える。
     const { prisma } = await import('@/lib/prisma')
     await Promise.all([
       prisma.settings.upsert({

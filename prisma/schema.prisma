@@ -1,3 +1,10 @@
+// X / Threads 運用オペレーションDB
+//
+// 設計方針:
+//   - 発信テーマ・ペルソナ・投稿ルールはコードに埋めず Account に持たせる（テーマ非依存）
+//   - 投稿の生成は Claude Code / MCP 側が担当。ここは「素材・下書き・予約・実績・コスト」の置き場
+//   - X APIは2026年2月から従量課金。ApiCost で1件ずつ実費を記録する
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -6,112 +13,274 @@ datasource db {
   provider = "postgresql"
 }
 
-model Post {
-  id           String    @id @default(cuid())
-  content      String
-  postType     String
-  formatType   String    @default("テキスト")
-  status       String    @default("下書き")
-  scheduledAt  DateTime?
-  postedAt     DateTime?
-  xPostId      String?
-  impressions  Int       @default(0)
-  likes        Int       @default(0)
-  retweets     Int       @default(0)
-  replies      Int       @default(0)
-  bookmarks    Int       @default(0)
-  imageUrls        String?
-  hashtags         String?
-  threadPosts      String?
-  parentPostId     String?
-  platform         String    @default("x")
-  threadsPostId    String?
-  threadsImp       Int       @default(0)
-  threadsLikes     Int       @default(0)
-  threadsReplies   Int       @default(0)
-  threadsReposts   Int       @default(0)
-  abGroupId        String?
-  abVariant        String?
-  qualityScore     Float?
-  qualityDetail    String?
-  qualityFeedback  String?
-  isFavorite       Boolean   @default(false)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  postAnalytics    PostAnalytics[]
+enum Platform {
+  X
+  THREADS
 }
 
-model PostAnalytics {
-  id             String   @id @default(cuid())
-  postId         String
-  platform       String   // "x" or "threads"
-  externalId     String
-  impressions    Int      @default(0)
-  likes          Int      @default(0)
-  reposts        Int      @default(0)
-  replies        Int      @default(0)
-  quotes         Int      @default(0)
-  engagementRate Float    @default(0)
-  fetchDate      String   // YYYY-MM-DD
-  fetchedAt      DateTime @default(now())
+enum PostStatus {
+  DRAFT // 下書き
+  REVIEWED // レビュー済み（予約待ち）
+  SCHEDULED // 予約済み
+  PUBLISHED // 投稿済み
+  FAILED // 投稿失敗
+  ARCHIVED // 見送り
+}
 
-  post           Post     @relation(fields: [postId], references: [id])
+enum ApiOperation {
+  POST_CREATE // 投稿作成
+  POST_CREATE_WITH_LINK // リンク入り投稿（単価が跳ね上がる）
+  POST_READ // 投稿読み取り
+  USER_READ // ユーザー情報読み取り
+  MEDIA_UPLOAD // メディアアップロード
+  OTHER
+}
+
+/// 運用アカウント。運用方針そのものをレコードとして持つ。
+/// 別ジャンルに乗り換えるときはこのレコードを差し替えるだけで済むようにしている。
+model Account {
+  id       String  @id @default(cuid())
+  slug     String  @unique /// 内部識別子（例: "main"）
+  isActive Boolean @default(true)
+
+  xUsername       String? /// @ を除いたハンドル
+  threadsUsername String?
+  displayName     String?
+
+  // ── 運用設計（MCP経由でClaude Codeが読み書きする） ──
+  persona        String? /// 一人称・口調・キャラクター設定
+  theme          String? /// 発信テーマ・扱う領域
+  targetAudience String? /// 想定読者
+  rules          String? /// 必須要素 / NGパターン（Markdown）
+  ctaPolicy      String? /// CTAの方針
+  postTypes      String? /// JSON配列: 投稿型と優先度
+  charLimitMin   Int     @default(100)
+  charLimitMax   Int     @default(250)
+  postingSlots   String? /// JSON配列: JSTの投稿時刻 例 ["08:00","12:30","21:00"]
+  timezone       String  @default("Asia/Tokyo")
+
+  // ── コスト管理 ──
+  monthlyBudgetUsd Float @default(20)
+
+  posts        Post[]
+  styleSamples StyleSample[]
+  buzzPatterns BuzzPattern[]
+  competitors  Competitor[]
+  keywords     Keyword[]
+  templates    PostTemplate[]
+  dailyMetrics AccountMetric[]
+  apiCosts     ApiCost[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// 投稿（下書き→予約→公開まで同一レコードで扱う）
+model Post {
+  id        String  @id @default(cuid())
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  content   String
+  status    PostStatus @default(DRAFT)
+  postType  String? /// 投稿型（自由文字列。Account.postTypes と対応）
+  mediaUrls String? /// JSON配列
+  hashtags  String?
+
+  // ── 配信先 ──
+  postToX       Boolean @default(true)
+  postToThreads Boolean @default(false)
+
+  // ── スレッド連投 ──
+  threadParentId String?
+  threadOrder    Int?
+  threadParent   Post?   @relation("Thread", fields: [threadParentId], references: [id], onDelete: Cascade)
+  threadChildren Post[]  @relation("Thread")
+
+  // ── 3層重複チェック用キー（MCPの check_duplicate が参照） ──
+  dedupeTheme    String? /// Layer1: 大枠のテーマ
+  dedupeMessage  String? /// Layer2: 核心メッセージ1文
+  dedupeEntities String? /// Layer3: 固有名詞・数値のJSON配列
+
+  scheduledAt DateTime?
+  postedAt    DateTime?
+
+  xPostId       String?
+  threadsPostId String?
+
+  // ── 実績の最新スナップショット（時系列は PostMetric） ──
+  impressions    Int   @default(0)
+  likes          Int   @default(0)
+  reposts        Int   @default(0)
+  replies        Int   @default(0)
+  bookmarks      Int   @default(0)
+  quotes         Int   @default(0)
+  engagementRate Float @default(0)
+
+  isFavorite   Boolean @default(false)
+  qualityScore Float?
+  qualityNote  String?
+  lastError    String?
+
+  metrics PostMetric[]
+  costs   ApiCost[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([accountId, status])
+  @@index([accountId, scheduledAt])
+  @@index([xPostId])
+}
+
+/// 投稿実績の時系列スナップショット（1日1行）
+model PostMetric {
+  id     String @id @default(cuid())
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  platform   Platform
+  externalId String
+
+  impressions    Int   @default(0)
+  likes          Int   @default(0)
+  reposts        Int   @default(0)
+  replies        Int   @default(0)
+  quotes         Int   @default(0)
+  bookmarks      Int   @default(0)
+  profileClicks  Int   @default(0)
+  linkClicks     Int   @default(0)
+  engagementRate Float @default(0)
+
+  fetchDate String /// YYYY-MM-DD（JST）
+  fetchedAt DateTime @default(now())
 
   @@unique([postId, platform, fetchDate])
+  @@index([platform, fetchDate])
 }
 
-model ApiUsage {
-  id        String @id @default(cuid())
-  date      String // YYYY-MM-DD
-  provider  String // "x" or "threads"
-  callCount Int    @default(0)
-  postCount Int    @default(0)
-  costUsd   Float  @default(0)
+/// API実費。X APIは2026/02から従量課金なので1オペレーションずつ積む。
+model ApiCost {
+  id        String   @id @default(cuid())
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
-  @@unique([date, provider])
+  date         String /// YYYY-MM-DD（JST）
+  platform     Platform
+  operation    ApiOperation
+  units        Int          @default(1)
+  unitPriceUsd Float
+  costUsd      Float
+
+  postId String?
+  post   Post?   @relation(fields: [postId], references: [id], onDelete: SetNull)
+  note   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([date, platform])
+  @@index([accountId, date])
 }
 
+/// 承認済みのトーン見本。生成プロンプトに注入するための素材。
+model StyleSample {
+  id        String  @id @default(cuid())
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  content   String
+  note      String?
+  sourceUrl String?
+
+  createdAt DateTime @default(now())
+
+  @@index([accountId])
+}
+
+/// 外部のバズ投稿を構造分解したもの。フック・構成の引き出しとして使う。
 model BuzzPattern {
-  id          String   @id @default(cuid())
+  id        String   @id @default(cuid())
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
   sourceUrl   String?
   sourceText  String
-  analysis    String
-  hookType    String
-  structure   String
-  createdAt   DateTime @default(now())
+  hookType    String /// フックの型
+  structure   String /// 構成の説明
+  analysis    String? /// JSON: firstLine / emotion / writingStyle など
+  impressions Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([accountId])
 }
 
+/// 監視対象の競合アカウント
 model Competitor {
-  id          String   @id @default(cuid())
-  username    String   @unique
+  id        String   @id @default(cuid())
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  username    String
   displayName String?
-  createdAt   DateTime @default(now())
+  note        String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([accountId, username])
 }
 
+/// 監視キーワード
 model Keyword {
   id        String   @id @default(cuid())
-  keyword   String   @unique
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  keyword String
+  note    String?
+
   createdAt DateTime @default(now())
+
+  @@unique([accountId, keyword])
 }
 
-model Analytics {
-  id               String   @id @default(cuid())
-  date             DateTime @unique
+/// 投稿型のテンプレート
+model PostTemplate {
+  id        String   @id @default(cuid())
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  name      String
+  postType  String
+  template  String
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([accountId])
+}
+
+/// アカウント単位の日次サマリ（フォロワー推移など）
+model AccountMetric {
+  id        String  @id @default(cuid())
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  platform Platform
+  date     String /// YYYY-MM-DD（JST）
+
   followers        Int?
+  following        Int?
+  totalPosts       Int?
   totalImpressions Int?
   totalEngagements Int?
-  createdAt        DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  @@unique([accountId, platform, date])
 }
 
-model PostTemplate {
-  id              String   @id @default(cuid())
-  name            String
-  postType        String
-  templateContent String
-  isDefault       Boolean  @default(false)
-  createdAt       DateTime @default(now())
-}
-
+/// ダッシュボードのログインユーザー
 model User {
   id        String    @id @default(cuid())
   email     String    @unique
@@ -128,15 +297,9 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+/// 汎用KV（Threadsのアクセストークンなど、UIから差し替える値）
 model Settings {
   key       String   @id
   value     String
-  updatedAt DateTime @updatedAt
-}
-
-model SamplePost {
-  id        Int      @id @default(autoincrement())
-  number    Int      @unique
-  text      String
   updatedAt DateTime @updatedAt
 }
