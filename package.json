@@ -14,15 +14,15 @@
     "cron:test": "node -e \"fetch('http://localhost:3001/api/cron/publish',{headers:{authorization:'Bearer '+process.env.CRON_SECRET}}).then(r=>r.json()).then(d=>console.log(JSON.stringify(d,null,2))).catch(e=>console.error(e))\""
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.9.1",
-    "@prisma/client": "^7.9.1",
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
     "@types/bcryptjs": "^2.4.6",
     "@vercel/blob": "^2.3.3",
     "bcryptjs": "^3.0.3",
     "next": "16.3.8",
     "next-auth": "^4.24.15",
     "pg": "^8.13.3",
-    "prisma": "^7.9.1",
+    "prisma": "^7.10.1",
     "react": "19.2.9",
     "react-dom": "19.2.9",
     "xmcp": "^0.6.13",
